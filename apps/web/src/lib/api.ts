@@ -146,6 +146,7 @@ export const api = {
     ),
 
   clock: () => get<Clock>("/clock"),
+  demoDates: (cityId: string) => get<{ city: string; dates: DemoDate[] }>(`/demo-dates?city_id=${cityId}`),
   /** Pin the app clock to an instant (ISO), or null to return to demo/live. */
   setClock: (asOf: string | null) => post<Clock>("/clock", { as_of: asOf }),
   /** Flip demo/live at runtime. demo_mode=false → live wall clock + a background
@@ -206,9 +207,18 @@ export interface Clock {
   filling?: string[];
 }
 
+/** A curated, pre-scored Demo-mode episode — see meta.py:DEMO_DATES. */
+export interface DemoDate {
+  at: string;
+  label: string;
+  aqi: number;
+  category: string;
+}
+
 export const queryKeys = {
   health: ["health"] as const,
   clock: ["clock"] as const,
+  demoDates: (cityId: string) => ["demoDates", cityId] as const,
   scout: (cityId: string, status: string) => ["scout", cityId, status] as const,
   cities: ["cities"] as const,
   current: (cityId: string) => ["current", cityId] as const,

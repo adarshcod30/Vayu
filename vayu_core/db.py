@@ -21,6 +21,23 @@ from vayu_core.config import get_settings
 
 _write_lock = threading.Lock()
 
+# DuckDB sizes its default buffer pool off *detected* host memory, which is
+# frequently wrong inside a memory-cgroup'd container (Render's free tier is
+# 512MB total, shared with the whole Python process — pandas/LightGBM/boto3
+# alone can be 150-250MB before a single query runs). Left unbounded, DuckDB's
+# own cache can grow past what's left and the OS OOM-kills the instance — this
+# is a documented DuckDB-in-containers footgun, not a VAYU-specific one.
+# Capping it here makes DuckDB spill to disk under pressure instead of taking
+# the process down; every connection (read, write, init) goes through this.
+_DUCKDB_MEMORY_LIMIT = "150MB"
+_DUCKDB_THREADS = 2
+
+
+def _bound_memory(con: duckdb.DuckDBPyConnection) -> duckdb.DuckDBPyConnection:
+    con.execute(f"PRAGMA memory_limit='{_DUCKDB_MEMORY_LIMIT}'")
+    con.execute(f"PRAGMA threads={_DUCKDB_THREADS}")
+    return con
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS measurements(
   city TEXT, station_id TEXT, param TEXT,          -- pm25|pm10|no2|so2|co|o3
@@ -147,7 +164,7 @@ def init_db(path: Path | None = None) -> None:
     target = path or db_file()
     target.parent.mkdir(parents=True, exist_ok=True)
     with _write_lock:
-        con = duckdb.connect(str(target))
+        con = _bound_memory(duckdb.connect(str(target)))
         try:
             con.execute(SCHEMA)
         finally:
@@ -160,7 +177,7 @@ def write_conn() -> Iterator[duckdb.DuckDBPyConnection]:
     target = db_file()
     target.parent.mkdir(parents=True, exist_ok=True)
     with _write_lock:
-        con = duckdb.connect(str(target))
+        con = _bound_memory(duckdb.connect(str(target)))
         try:
             con.execute(SCHEMA)
             yield con
@@ -179,7 +196,7 @@ def read_conn() -> Iterator[duckdb.DuckDBPyConnection]:
     target = db_file()
     if not target.exists():
         init_db(target)
-    con = duckdb.connect(str(target), read_only=True)
+    con = _bound_memory(duckdb.connect(str(target), read_only=True))
     try:
         yield con
     finally:

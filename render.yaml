@@ -16,10 +16,14 @@ services:
     runtime: docker
     dockerfilePath: ./deploy/Dockerfile.api
     dockerContext: .
-    # Free tier sleeps after 15 min idle (a judge's first click eats a ~30-50s
-    # cold start) and its 512MB RAM is tight for pandas+LightGBM+DuckDB under
-    # load. Starter removes the sleep for a few $/mo — recommended for judging.
-    plan: starter
+    # Deployed on `free` (Starter requires a card on file — 402 without one).
+    # 512MB is tight for pandas+LightGBM+DuckDB; verified under a real
+    # --memory=512m local run that the memory hardening below (DuckDB memory
+    # pragma + trimmed live-fill windows + explicit gc) keeps peak usage under
+    # the ceiling. Free tier also sleeps after 15 min idle (a judge's first
+    # click eats a ~30-50s cold start) — upgrade to `starter` (needs a card,
+    # a few $/mo) to remove both the sleep and the remaining risk margin.
+    plan: free
     healthCheckPath: /api/v1/health
     envVars:
       - key: DEMO_MODE

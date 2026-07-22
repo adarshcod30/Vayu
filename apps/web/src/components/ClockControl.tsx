@@ -12,6 +12,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { api, queryKeys } from "@/lib/api";
+import { aqiColor, readableOn } from "@/lib/aqi";
 import { cn } from "@/lib/cn";
 import { useCommandStore } from "@/store/useCommandStore";
 
@@ -63,6 +64,11 @@ export function ClockControl() {
     // Keep polling even when the tab is backgrounded — a user who switches
     // away during the live fetch must find the page refreshed when they return.
     refetchIntervalInBackground: true,
+  });
+  const demoDates = useQuery({
+    queryKey: queryKeys.demoDates(cityId),
+    queryFn: () => api.demoDates(cityId),
+    staleTime: Infinity, // curated server-side; doesn't change under a running app
   });
   const [open, setOpen] = useState(false);
   const [, setTick] = useState(0);
@@ -211,84 +217,135 @@ export function ClockControl() {
             </p>
           </div>
 
-          <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-slate-500">
-            Time-travel the airshed
-          </p>
+          {demoMode ? (
+            <>
+              <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                Demo episodes — real, pre-scored
+              </p>
+              <ul className="space-y-1">
+                {(demoDates.data?.dates ?? []).map((d) => {
+                  const selected = nowIso && new Date(nowIso).getTime() === new Date(d.at).getTime();
+                  const color = aqiColor(d.aqi);
+                  return (
+                    <li key={d.at}>
+                      <button
+                        onClick={() => pinTo(d.at)}
+                        disabled={setClock.isPending}
+                        data-testid={`demo-date-${d.at}`}
+                        className={cn(
+                          "flex w-full items-center justify-between gap-2 rounded border px-2 py-1.5 text-left transition-colors disabled:opacity-50",
+                          selected ? "border-data/50 bg-data/10" : "border-edge bg-surface-2 hover:border-data/40",
+                        )}
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-xs font-medium text-slate-100">{d.label}</span>
+                          <span className="numeral block text-[10px] text-slate-500">
+                            {new Date(d.at).toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                              timeZone: "Asia/Kolkata",
+                            })}
+                          </span>
+                        </span>
+                        <span
+                          className="numeral shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
+                          style={{ background: color, color: readableOn(color) }}
+                        >
+                          {d.aqi}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
+                Five real, already-scored moments across the season — picking
+                one is instant, nothing is computed live. Full time-travel is
+                in <span className="text-slate-400">Live · today</span>.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                Time-travel the airshed
+              </p>
 
-          {/* Date + time selection (IST). Bounded to the data coverage window. */}
-          <div className="flex gap-2">
-            <label className="flex-1">
-              <span className="mb-1 block text-[9px] uppercase tracking-wider text-slate-500">Date</span>
-              <input
-                type="date"
-                data-testid="clock-date"
-                value={parts.date}
-                min={dataMin ? istParts(dataMin).date : undefined}
-                max={maxSelectable ? istParts(maxSelectable).date : undefined}
-                onChange={(e) => e.target.value && pinTo(combineIst(e.target.value, parts.time || "06:00"))}
-                className="w-full rounded border border-edge bg-surface-2 px-2 py-1.5 text-xs text-slate-100"
-              />
-            </label>
-            <label className="w-24">
-              <span className="mb-1 block text-[9px] uppercase tracking-wider text-slate-500">Time</span>
-              <input
-                type="time"
-                data-testid="clock-time"
-                value={parts.time}
-                onChange={(e) => e.target.value && pinTo(combineIst(parts.date, e.target.value))}
-                className="w-full rounded border border-edge bg-surface-2 px-2 py-1.5 text-xs text-slate-100"
-              />
-            </label>
-          </div>
+              {/* Date + time selection (IST). Bounded to the data coverage window. */}
+              <div className="flex gap-2">
+                <label className="flex-1">
+                  <span className="mb-1 block text-[9px] uppercase tracking-wider text-slate-500">Date</span>
+                  <input
+                    type="date"
+                    data-testid="clock-date"
+                    value={parts.date}
+                    min={dataMin ? istParts(dataMin).date : undefined}
+                    max={maxSelectable ? istParts(maxSelectable).date : undefined}
+                    onChange={(e) => e.target.value && pinTo(combineIst(e.target.value, parts.time || "06:00"))}
+                    className="w-full rounded border border-edge bg-surface-2 px-2 py-1.5 text-xs text-slate-100"
+                  />
+                </label>
+                <label className="w-24">
+                  <span className="mb-1 block text-[9px] uppercase tracking-wider text-slate-500">Time</span>
+                  <input
+                    type="time"
+                    data-testid="clock-time"
+                    value={parts.time}
+                    onChange={(e) => e.target.value && pinTo(combineIst(parts.date, e.target.value))}
+                    className="w-full rounded border border-edge bg-surface-2 px-2 py-1.5 text-xs text-slate-100"
+                  />
+                </label>
+              </div>
 
-          {/* Steppers — the easy way to walk through the dates in between. */}
-          <div className="mt-2 grid grid-cols-4 gap-1.5">
-            <StepBtn onClick={() => shift(-DAY_MS)} label="−1 day">
-              <ChevronLeft className="h-3 w-3" aria-hidden />
-              1d
-            </StepBtn>
-            <StepBtn onClick={() => shift(-HOUR_MS)} label="−1 hour">
-              <ChevronLeft className="h-3 w-3" aria-hidden />
-              1h
-            </StepBtn>
-            <StepBtn onClick={() => shift(HOUR_MS)} label="+1 hour">
-              1h
-              <ChevronRight className="h-3 w-3" aria-hidden />
-            </StepBtn>
-            <StepBtn onClick={() => shift(DAY_MS)} label="+1 day">
-              1d
-              <ChevronRight className="h-3 w-3" aria-hidden />
-            </StepBtn>
-          </div>
+              {/* Steppers — the easy way to walk through the dates in between. */}
+              <div className="mt-2 grid grid-cols-4 gap-1.5">
+                <StepBtn onClick={() => shift(-DAY_MS)} label="−1 day">
+                  <ChevronLeft className="h-3 w-3" aria-hidden />
+                  1d
+                </StepBtn>
+                <StepBtn onClick={() => shift(-HOUR_MS)} label="−1 hour">
+                  <ChevronLeft className="h-3 w-3" aria-hidden />
+                  1h
+                </StepBtn>
+                <StepBtn onClick={() => shift(HOUR_MS)} label="+1 hour">
+                  1h
+                  <ChevronRight className="h-3 w-3" aria-hidden />
+                </StepBtn>
+                <StepBtn onClick={() => shift(DAY_MS)} label="+1 day">
+                  1d
+                  <ChevronRight className="h-3 w-3" aria-hidden />
+                </StepBtn>
+              </div>
 
-          <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
-            Snaps the nowcast, forecast, alerts, GRAP stage and ROI to that hour.
-            Forecasts are scored on demand.
-          </p>
+              <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
+                Snaps the nowcast, forecast, alerts, GRAP stage and ROI to that
+                hour. Forecasts are scored on demand.
+              </p>
 
-          <div className="mt-2 flex gap-1.5">
-            {dataMax && (
-              <button
-                onClick={() => pinTo(dataMax)}
-                disabled={setClock.isPending}
-                data-testid="clock-latest"
-                className="flex flex-1 items-center justify-center gap-1.5 rounded border border-edge bg-surface-2 px-2 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:border-data/50 disabled:opacity-50"
-              >
-                <FastForward className="h-3 w-3" aria-hidden />
-                Latest data
-              </button>
-            )}
-            <button
-              onClick={() => setClock.mutate(null)}
-              disabled={setClock.isPending}
-              data-testid="clock-reset"
-              title={live ? "Return to live wall clock" : "Return to the demo date"}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded border border-edge bg-surface-2 px-2 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:border-data/50 disabled:opacity-50"
-            >
-              <RotateCcw className="h-3 w-3" aria-hidden />
-              {setClock.isPending ? "…" : live ? "Live now" : "Demo date"}
-            </button>
-          </div>
+              {dataMax && (
+                <button
+                  onClick={() => pinTo(dataMax)}
+                  disabled={setClock.isPending}
+                  data-testid="clock-latest"
+                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded border border-edge bg-surface-2 px-2 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:border-data/50 disabled:opacity-50"
+                >
+                  <FastForward className="h-3 w-3" aria-hidden />
+                  Latest data
+                </button>
+              )}
+            </>
+          )}
+
+          <button
+            onClick={() => setClock.mutate(null)}
+            disabled={setClock.isPending}
+            data-testid="clock-reset"
+            title={live ? "Return to live wall clock" : "Return to the demo date"}
+            className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded border border-edge bg-surface-2 px-2 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:border-data/50 disabled:opacity-50"
+          >
+            <RotateCcw className="h-3 w-3" aria-hidden />
+            {setClock.isPending ? "…" : live ? "Live now" : "Demo date"}
+          </button>
         </div>
       )}
     </div>

@@ -24,8 +24,9 @@ rest still lands (same philosophy as seed.py).
 
 from __future__ import annotations
 
+import gc
 import threading
-from datetime import date, timedelta
+from datetime import timedelta
 
 import pandas as pd
 from loguru import logger
@@ -35,9 +36,13 @@ from vayu_core.db import set_data_status, upsert_df, write_conn
 
 MEAS_COLS = ["city", "station_id", "param", "ts", "value", "unit", "source"]
 
-# 10 days behind covers every lag/rolling window the features need (L1a);
-# 4 days ahead covers fx_* out to t+72h with slack.
-PAST_DAYS = 10
+# The model's true longest lookback is MAX_LOOKBACK_HOURS=48h (features.py) —
+# pm25_lag48 and the 48h regional fire window. 6 days gives 4 days of slack for
+# gappy stations while keeping the live-fill's peak pandas footprint well under
+# Render's 512MB free-tier ceiling; the old 10-day window fetched ~40% more
+# weather/measurement rows than the model can ever use.
+# 4 days ahead covers fx_* out to t+72h with a day of buffer.
+PAST_DAYS = 6
 FORECAST_DAYS = 4
 
 _lock = threading.Lock()
@@ -87,6 +92,9 @@ def _fill_measurements(city: CityConfig, now) -> dict:
             out["rows"] = upsert_df(con, "measurements", meas, ["city", "station_id", "param", "ts"])
             set_data_status(con, city.id, "measurements", "live", f"live gap-fill · {out['rows']} rows", out["rows"])
             set_data_status(con, city.id, "stations", "live", f"live gap-fill · {out['stations']} stations", out["stations"])
+        del meas
+    del frames
+    gc.collect()
     return out
 
 
@@ -117,6 +125,8 @@ def _fill_weather(city: CityConfig, now) -> int:
         df.loc[pd.to_datetime(df["ts"], utc=True) <= now, "kind"] = "hist"
         with write_conn() as con:
             total += upsert_df(con, "weather_hourly", df, ["city", "grid", "grid_i", "grid_j", "ts", "kind"])
+        del df
+        gc.collect()  # each grid iteration should not still be holding the last one's frame
     with write_conn() as con:
         set_data_status(con, city.id, "weather", "live" if total else "unavailable",
                         f"live gap-fill · {total} rows (±{PAST_DAYS}/+{FORECAST_DAYS}d)", total)
@@ -138,6 +148,8 @@ def _fill_fires(city: CityConfig, now) -> int:
         with write_conn() as con:
             n = upsert_df(con, "fires", df, ["city", "fire_id"])
             set_data_status(con, city.id, "fires", status, f"live gap-fill · {n} detections (7d)", n)
+    del df
+    gc.collect()
     return n
 
 
@@ -153,6 +165,9 @@ def fill_city(city_id: str, scout: bool = True) -> dict:
     now = s.now()
     logger.info(f"[{city_id}] live gap-fill for {now:%Y-%m-%d %H:%M UTC}…")
 
+    # Sequential, not parallel: each stage's pandas frames are scoped to its own
+    # function and freed (gc.collect()) before the next stage starts, so peak
+    # memory is one stage's footprint, not the sum of all four.
     meas = _fill_measurements(city, now)
     wx = _fill_weather(city, now)
     fires = _fill_fires(city, now)
@@ -165,6 +180,7 @@ def fill_city(city_id: str, scout: bool = True) -> dict:
             scouted = run_scout(city_id).written
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"[{city_id}] livefill scout failed: {exc}")
+    gc.collect()
 
     # Invalidate the API's per-city caches that were built from pre-fill data.
     from . import compute

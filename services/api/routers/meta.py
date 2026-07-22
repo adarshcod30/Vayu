@@ -23,6 +23,31 @@ from ..schemas import HealthOut
 
 router = APIRouter(tags=["meta"])
 
+# Curated demo episodes (Phase L, memory hardening): the date picker in Demo
+# mode no longer lets the operator pick an arbitrary hour. Render's free tier
+# is 512MB, and on-demand scoring an arbitrary never-before-seen hour — while
+# individually cheap (~1.5s, windowed) — was enough added pressure on top of
+# DuckDB's own footprint to occasionally tip the instance into an OOM kill.
+# These 5 hours are already scored (sitting in the `forecasts` table from
+# earlier runs), so selecting one is a plain read — no scoring computation at
+# all. They're real measured episodes across the season, not synthetic: a
+# clean day, the season's first uptick, the crisis building, the flagship
+# severe episode (3 Nov), and the season's worst hour — an honest arc rather
+# than a false "spread across the whole year" (Delhi's pollution is seasonal;
+# nothing severe happens in July, which is the point of the Live toggle).
+# Live mode is unaffected — its free date/time picker still works for any
+# hour, because on-demand scoring for arbitrary Live dates already has its own
+# windowed cap and doesn't run the far heavier live gap-fill.
+DEMO_DATES: dict[str, list[dict]] = {
+    "delhi": [
+        {"at": "2025-09-03T17:00:00Z", "label": "Clean day", "aqi": 55, "category": "Good"},
+        {"at": "2025-09-17T17:00:00Z", "label": "Early-season uptick", "aqi": 107, "category": "Moderate"},
+        {"at": "2025-10-24T17:00:00Z", "label": "Crisis building", "aqi": 337, "category": "Very Poor"},
+        {"at": "2025-11-03T06:00:00Z", "label": "Flagship severe episode", "aqi": 373, "category": "Very Poor"},
+        {"at": "2025-11-24T00:00:00Z", "label": "Peak of the season", "aqi": 405, "category": "Severe"},
+    ],
+}
+
 
 class ClockIn(BaseModel):
     as_of: datetime | None = None  # None clears the pin (back to demo/live)
@@ -68,6 +93,12 @@ def get_clock() -> dict:
     return _clock_state()
 
 
+@router.get("/demo-dates")
+def get_demo_dates(city_id: str = "delhi") -> dict:
+    """The curated Demo-mode episodes — see DEMO_DATES for why these exist."""
+    return {"city": city_id, "dates": DEMO_DATES.get(city_id, [])}
+
+
 @router.post("/clock")
 def post_clock(body: ClockIn) -> dict:
     """Pin the whole app to `as_of` (any hour with data), or clear to demo/live.
@@ -90,7 +121,7 @@ def post_mode(body: ModeIn) -> dict:
     """Toggle demo/live at runtime. Demo OFF → live wall clock + live feeds for
     today; demo ON → bundled past data pinned to DEMO_NOW.
 
-    Switching to live kicks a background gap-fill (CPCB + OpenAQ + weather ±10d
+    Switching to live kicks a background gap-fill (CPCB + OpenAQ + weather ±6d
     + FIRMS) so today's map, forecast and trajectory populate within ~a minute —
     the product rule: dates past the archive are fetched, never refused.
     """
@@ -99,7 +130,7 @@ def post_mode(body: ModeIn) -> dict:
         from ..livefill import fill_city_async
 
         # Always refresh on switch: whether it's today or 25 days from now, the
-        # click assembles the present-day picture (CPCB/OpenAQ + weather ±10d +
+        # click assembles the present-day picture (CPCB/OpenAQ + weather ±6d +
         # FIRMS + scout) and scores the current hour.
         fill_city_async(body.city_id)
     return _clock_state()
