@@ -64,8 +64,7 @@ lint: install
 backtest: install
 	$(PY) -m vayu_core.forecast.backtest
 
-# Live scheduled jobs (Phase L1c/d). refresh = hourly ingest+score; retrain =
-# weekly retrain behind the promotion gate. See deploy/DEPLOY.md.
+# Scheduled jobs: refresh = hourly ingest+score; retrain = weekly retrain behind promotion gate.
 refresh: install
 	$(PY) -m services.jobs.refresh
 

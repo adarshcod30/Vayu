@@ -217,10 +217,10 @@ export function ClockControl() {
             </p>
           </div>
 
-          {demoMode ? (
-            <>
+          {demoMode && (demoDates.data?.dates?.length ?? 0) > 0 && (
+            <div className="mb-3">
               <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-slate-500">
-                Demo episodes — real, pre-scored
+                Demo episodes — pre-scored
               </p>
               <ul className="space-y-1">
                 {(demoDates.data?.dates ?? []).map((d) => {
@@ -259,82 +259,76 @@ export function ClockControl() {
                   );
                 })}
               </ul>
-              <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
-                Five real, already-scored moments across the season — picking
-                one is instant, nothing is computed live. Full time-travel is
-                in <span className="text-slate-400">Live · today</span>.
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-slate-500">
-                Time-travel the airshed
-              </p>
-
-              {/* Date + time selection (IST). Bounded to the data coverage window. */}
-              <div className="flex gap-2">
-                <label className="flex-1">
-                  <span className="mb-1 block text-[9px] uppercase tracking-wider text-slate-500">Date</span>
-                  <input
-                    type="date"
-                    data-testid="clock-date"
-                    value={parts.date}
-                    min={dataMin ? istParts(dataMin).date : undefined}
-                    max={maxSelectable ? istParts(maxSelectable).date : undefined}
-                    onChange={(e) => e.target.value && pinTo(combineIst(e.target.value, parts.time || "06:00"))}
-                    className="w-full rounded border border-edge bg-surface-2 px-2 py-1.5 text-xs text-slate-100"
-                  />
-                </label>
-                <label className="w-24">
-                  <span className="mb-1 block text-[9px] uppercase tracking-wider text-slate-500">Time</span>
-                  <input
-                    type="time"
-                    data-testid="clock-time"
-                    value={parts.time}
-                    onChange={(e) => e.target.value && pinTo(combineIst(parts.date, e.target.value))}
-                    className="w-full rounded border border-edge bg-surface-2 px-2 py-1.5 text-xs text-slate-100"
-                  />
-                </label>
-              </div>
-
-              {/* Steppers — the easy way to walk through the dates in between. */}
-              <div className="mt-2 grid grid-cols-4 gap-1.5">
-                <StepBtn onClick={() => shift(-DAY_MS)} label="−1 day">
-                  <ChevronLeft className="h-3 w-3" aria-hidden />
-                  1d
-                </StepBtn>
-                <StepBtn onClick={() => shift(-HOUR_MS)} label="−1 hour">
-                  <ChevronLeft className="h-3 w-3" aria-hidden />
-                  1h
-                </StepBtn>
-                <StepBtn onClick={() => shift(HOUR_MS)} label="+1 hour">
-                  1h
-                  <ChevronRight className="h-3 w-3" aria-hidden />
-                </StepBtn>
-                <StepBtn onClick={() => shift(DAY_MS)} label="+1 day">
-                  1d
-                  <ChevronRight className="h-3 w-3" aria-hidden />
-                </StepBtn>
-              </div>
-
-              <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
-                Snaps the nowcast, forecast, alerts, GRAP stage and ROI to that
-                hour. Forecasts are scored on demand.
-              </p>
-
-              {dataMax && (
-                <button
-                  onClick={() => pinTo(dataMax)}
-                  disabled={setClock.isPending}
-                  data-testid="clock-latest"
-                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded border border-edge bg-surface-2 px-2 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:border-data/50 disabled:opacity-50"
-                >
-                  <FastForward className="h-3 w-3" aria-hidden />
-                  Latest data
-                </button>
-              )}
-            </>
+            </div>
           )}
+
+          <div>
+            <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-slate-500">
+              Time-travel the airshed
+            </p>
+
+            {/* Date + time selection (IST). Bounded to the data coverage window. */}
+            <div className="flex gap-2">
+              <label className="flex-1">
+                <span className="mb-1 block text-[9px] uppercase tracking-wider text-slate-500">Date</span>
+                <input
+                  type="date"
+                  data-testid="clock-date"
+                  value={parts.date}
+                  min={dataMin ? istParts(dataMin).date : undefined}
+                  max={maxSelectable ? istParts(maxSelectable).date : undefined}
+                  onChange={(e) => e.target.value && pinTo(combineIst(e.target.value, parts.time || "06:00"))}
+                  className="w-full rounded border border-edge bg-surface-2 px-2 py-1.5 text-xs text-slate-100"
+                />
+              </label>
+              <label className="w-24">
+                <span className="mb-1 block text-[9px] uppercase tracking-wider text-slate-500">Time</span>
+                <input
+                  type="time"
+                  data-testid="clock-time"
+                  value={parts.time}
+                  onChange={(e) => e.target.value && pinTo(combineIst(parts.date, e.target.value))}
+                  className="w-full rounded border border-edge bg-surface-2 px-2 py-1.5 text-xs text-slate-100"
+                />
+              </label>
+            </div>
+
+            {/* Steppers — the easy way to walk through the dates in between. */}
+            <div className="mt-2 grid grid-cols-4 gap-1.5">
+              <StepBtn onClick={() => shift(-DAY_MS)} label="−1 day">
+                <ChevronLeft className="h-3 w-3" aria-hidden />
+                1d
+              </StepBtn>
+              <StepBtn onClick={() => shift(-HOUR_MS)} label="−1 hour">
+                <ChevronLeft className="h-3 w-3" aria-hidden />
+                1h
+              </StepBtn>
+              <StepBtn onClick={() => shift(HOUR_MS)} label="+1 hour">
+                1h
+                <ChevronRight className="h-3 w-3" aria-hidden />
+              </StepBtn>
+              <StepBtn onClick={() => shift(DAY_MS)} label="+1 day">
+                1d
+                <ChevronRight className="h-3 w-3" aria-hidden />
+              </StepBtn>
+            </div>
+
+            <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
+              Snaps the nowcast, forecast, alerts, GRAP stage and ROI to that hour. Forecasts are scored on demand.
+            </p>
+
+            {dataMax && (
+              <button
+                onClick={() => pinTo(dataMax)}
+                disabled={setClock.isPending}
+                data-testid="clock-latest"
+                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded border border-edge bg-surface-2 px-2 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:border-data/50 disabled:opacity-50"
+              >
+                <FastForward className="h-3 w-3" aria-hidden />
+                Latest data
+              </button>
+            )}
+          </div>
 
           <button
             onClick={() => setClock.mutate(null)}

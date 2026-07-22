@@ -34,8 +34,10 @@ _DUCKDB_THREADS = 2
 
 
 def _bound_memory(con: duckdb.DuckDBPyConnection) -> duckdb.DuckDBPyConnection:
-    con.execute(f"PRAGMA memory_limit='{_DUCKDB_MEMORY_LIMIT}'")
-    con.execute(f"PRAGMA threads={_DUCKDB_THREADS}")
+    limit = get_settings().duckdb_memory_limit
+    if limit:
+        con.execute(f"PRAGMA memory_limit='{limit}'")
+        con.execute("PRAGMA threads=2")
     return con
 
 SCHEMA = """

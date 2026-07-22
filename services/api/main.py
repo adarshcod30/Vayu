@@ -30,15 +30,8 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    # Deployment: pull the hot DuckDB from S3 if a bucket is configured and no
-    # local DB exists yet (no-op in the demo). This is what lets the image ship
-    # code-only while data lives in S3.
-    from vayu_core.storage import maybe_pull_on_boot
-
-    maybe_pull_on_boot()
-
     # Idempotent CREATE TABLE IF NOT EXISTS — brings older DBs up to the current
-    # schema (e.g. the L3 scouted_evidence table) without a reseed.
+    # schema without a reseed.
     from vayu_core.db import init_db
 
     init_db()

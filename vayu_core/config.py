@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     open_meteo_api_key: str = ""
 
     vayu_db_path: str = "data/vayu.duckdb"
+    duckdb_memory_limit: str = ""  # empty string = no artificial cap (unconstrained host RAM locally)
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
     # -- Live mode (Phase L). All optional; empty = demo/offline behaviour. --
@@ -62,8 +63,6 @@ class Settings(BaseSettings):
     brave_api_key: str = ""
     aws_access_key_id: str = ""
     aws_secret_access_key: str = ""
-    vayu_s3_bucket: str = ""
-    vayu_s3_prefix: str = "vayu"
 
     @property
     def live_mode(self) -> bool:
