@@ -37,13 +37,13 @@ from vayu_core.db import set_data_status, upsert_df, write_conn
 MEAS_COLS = ["city", "station_id", "param", "ts", "value", "unit", "source"]
 
 # The model's true longest lookback is MAX_LOOKBACK_HOURS=48h (features.py) —
-# pm25_lag48 and the 48h regional fire window. 6 days gives 4 days of slack for
-# gappy stations while keeping the live-fill's peak pandas footprint well under
-# Render's 512MB free-tier ceiling; the old 10-day window fetched ~40% more
-# weather/measurement rows than the model can ever use.
-# 4 days ahead covers fx_* out to t+72h with a day of buffer.
-PAST_DAYS = 6
-FORECAST_DAYS = 4
+# pm25_lag48 and the 48h regional fire window. 4 days gives 2 days of slack for
+# gappy stations while keeping the live-fill's peak pandas footprint safely
+# under Render's 512MB free-tier ceiling (a 6-day window peaked at ~510MB — one
+# bad moment from an OOM kill). "Use only 5 days of data" — this is that.
+# 3 days ahead covers fx_* out to t+72h exactly.
+PAST_DAYS = 4
+FORECAST_DAYS = 3
 
 _lock = threading.Lock()
 _running: set[str] = set()
