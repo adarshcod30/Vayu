@@ -1,0 +1,50 @@
+# Render Blueprint for the VAYU API (services/api).
+#
+# Deploy: Render dashboard -> New -> Blueprint -> connect this repo. Render
+# reads this file and creates the service below. Secrets (marked sync: false)
+# are NOT stored here — Render prompts for them once at blueprint creation,
+# then they live only in Render's encrypted env var store.
+#
+# The image is code-only (see deploy/Dockerfile.api); the hot DuckDB is pulled
+# from S3 on boot (vayu_core/storage.py -> maybe_pull_on_boot(), called from
+# the FastAPI lifespan in services/api/main.py). Run
+# `python -c "from vayu_core.storage import push_hot_db; push_hot_db()"`
+# locally whenever you want the deployed instance to pick up fresh seed data.
+services:
+  - type: web
+    name: vayu-api
+    runtime: docker
+    dockerfilePath: ./deploy/Dockerfile.api
+    dockerContext: .
+    # Free tier sleeps after 15 min idle (a judge's first click eats a ~30-50s
+    # cold start) and its 512MB RAM is tight for pandas+LightGBM+DuckDB under
+    # load. Starter removes the sleep for a few $/mo — recommended for judging.
+    plan: starter
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: DEMO_MODE
+        value: "true"
+      - key: AWS_REGION
+        value: us-east-1
+      - key: VAYU_S3_BUCKET
+        value: vayu-s3-bucket
+      - key: VAYU_S3_PREFIX
+        value: vayu
+      - key: BEDROCK_MODEL_ID
+        value: us.amazon.nova-pro-v1:0
+      - key: SEARCH_PROVIDER
+        value: tavily
+      # Secrets — Render will prompt for these values; paste from your local
+      # .env, never commit them here.
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: DATA_GOV_IN_API_KEY
+        sync: false
+      - key: OPENAQ_API_KEY
+        sync: false
+      - key: FIRMS_API_KEY
+        sync: false

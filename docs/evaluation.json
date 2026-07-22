@@ -1,0 +1,131 @@
+{
+  "generated_ts": "2026-07-17T08:01:27.108446+00:00",
+  "protocol": {
+    "method": "rolling-origin, last N days held out entirely; models retrained pre-cutoff only",
+    "holdout_days": 30,
+    "holdout_from": "2025-10-25T22:00:00+00:00",
+    "holdout_to": "2025-11-24T22:00:00+00:00",
+    "issue_hours_utc": [
+      0,
+      6,
+      12,
+      18
+    ],
+    "crossing_threshold_aqi": 300,
+    "cities": [
+      "delhi",
+      "lucknow"
+    ]
+  },
+  "metrics": [
+    {
+      "model": "VAYU",
+      "horizon_h": 24,
+      "n": 5141,
+      "rmse": 85.86237156070197,
+      "mae": 58.09443664139937,
+      "bucket_accuracy": 0.5602022952732931,
+      "crossing_precision": 0.8540249433106576,
+      "crossing_recall": 0.8381084840055633,
+      "crossing_events": 3595
+    },
+    {
+      "model": "Persistence",
+      "horizon_h": 24,
+      "n": 4961,
+      "rmse": 86.13279920669659,
+      "mae": 59.62980044345898,
+      "bucket_accuracy": 0.5597661761741585,
+      "crossing_precision": 0.8625954198473282,
+      "crossing_recall": 0.8418338108882522,
+      "crossing_events": 3490
+    },
+    {
+      "model": "Climatology",
+      "horizon_h": 24,
+      "n": 5141,
+      "rmse": 114.148318210884,
+      "mae": 92.15064598129473,
+      "bucket_accuracy": 0.3890293717175647,
+      "crossing_precision": 0.7256461232604374,
+      "crossing_recall": 0.913769123783032,
+      "crossing_events": 3595
+    },
+    {
+      "model": "VAYU",
+      "horizon_h": 48,
+      "n": 4970,
+      "rmse": 93.26197846608217,
+      "mae": 64.96437285612794,
+      "bucket_accuracy": 0.5100603621730382,
+      "crossing_precision": 0.827238698531529,
+      "crossing_recall": 0.8239174075136221,
+      "crossing_events": 3487
+    },
+    {
+      "model": "Persistence",
+      "horizon_h": 48,
+      "n": 4696,
+      "rmse": 95.47176924021241,
+      "mae": 67.67615417376491,
+      "bucket_accuracy": 0.5114991482112436,
+      "crossing_precision": 0.8640075376884422,
+      "crossing_recall": 0.8194816800714924,
+      "crossing_events": 3357
+    },
+    {
+      "model": "Climatology",
+      "horizon_h": 48,
+      "n": 4970,
+      "rmse": 117.2569371144822,
+      "mae": 94.97790399016709,
+      "bucket_accuracy": 0.38953722334004026,
+      "crossing_precision": 0.7246505435988463,
+      "crossing_recall": 0.9366217378835675,
+      "crossing_events": 3487
+    },
+    {
+      "model": "VAYU",
+      "horizon_h": 72,
+      "n": 4752,
+      "rmse": 97.37029179300004,
+      "mae": 69.31777989184407,
+      "bucket_accuracy": 0.4772727272727273,
+      "crossing_precision": 0.8125,
+      "crossing_recall": 0.8064707628376373,
+      "crossing_events": 3369
+    },
+    {
+      "model": "Persistence",
+      "horizon_h": 72,
+      "n": 4475,
+      "rmse": 98.01110606267277,
+      "mae": 70.77080000000001,
+      "bucket_accuracy": 0.4864804469273743,
+      "crossing_precision": 0.8400515962592712,
+      "crossing_recall": 0.8178963893249608,
+      "crossing_events": 3185
+    },
+    {
+      "model": "Climatology",
+      "horizon_h": 72,
+      "n": 4752,
+      "rmse": 117.98393385356916,
+      "mae": 95.49374405890974,
+      "bucket_accuracy": 0.40046296296296297,
+      "crossing_precision": 0.7269239449334236,
+      "crossing_recall": 0.9560700504600772,
+      "crossing_events": 3369
+    }
+  ],
+  "calibration_p10_p90": {
+    "24": 0.773,
+    "48": 0.751,
+    "72": 0.682
+  },
+  "charts": [
+    "img/backtest_h24.png",
+    "img/backtest_h48.png",
+    "img/backtest_h72.png"
+  ]
+}

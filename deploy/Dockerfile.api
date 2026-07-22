@@ -1,0 +1,24 @@
+# VAYU API — code-only image. Data (the hot DuckDB) is pulled from S3 on boot.
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# System deps: libgomp for LightGBM.
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+# Code only — no data/, no models/artifacts baked in (they live in S3).
+COPY vayu_core/ vayu_core/
+COPY services/ services/
+COPY config/ config/
+COPY models/artifacts/ models/artifacts/
+
+EXPOSE 8000
+
+# maybe_pull_on_boot() (in the FastAPI lifespan) fetches the hot DB from S3.
+CMD ["uvicorn", "services.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

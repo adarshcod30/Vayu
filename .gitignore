@@ -1,0 +1,29 @@
+# --- VAYU ---
+.env
+data/cache/
+# Dossiers are generated at dispatch time; curated samples live in docs/samples/.
+data/dossiers/
+data/vayu.duckdb
+data/vayu.duckdb.wal
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.coverage
+htmlcov/
+
+# Node / Next
+node_modules/
+.next/
+out/
+.turbo/
+npm-debug.log*
+.DS_Store
+
+# Notebooks
+.ipynb_checkpoints/

@@ -1,0 +1,56 @@
+{
+  "scales": {
+    "open_burning": 6.004,
+    "traffic": 0.943,
+    "construction": 5.0,
+    "industry": 0.504,
+    "regional_transport": 10.668
+  },
+  "cross_check": [
+    {
+      "category": "open_burning",
+      "vayu_mean_pct": 26.3,
+      "vayu_min_pct": 8.2,
+      "vayu_max_pct": 88.3,
+      "published_low_pct": 10.0,
+      "published_high_pct": 40.0,
+      "within_published_range": true
+    },
+    {
+      "category": "traffic",
+      "vayu_mean_pct": 21.1,
+      "vayu_min_pct": 0.0,
+      "vayu_max_pct": 56.9,
+      "published_low_pct": 15.0,
+      "published_high_pct": 25.0,
+      "within_published_range": true
+    },
+    {
+      "category": "industry",
+      "vayu_mean_pct": 15.8,
+      "vayu_min_pct": 0.6,
+      "vayu_max_pct": 33.3,
+      "published_low_pct": 10.0,
+      "published_high_pct": 20.0,
+      "within_published_range": true
+    },
+    {
+      "category": "construction",
+      "vayu_mean_pct": 10.5,
+      "vayu_min_pct": 0.0,
+      "vayu_max_pct": 58.5,
+      "published_low_pct": 5.0,
+      "published_high_pct": 15.0,
+      "within_published_range": true
+    },
+    {
+      "category": "regional_transport",
+      "vayu_mean_pct": 26.3,
+      "vayu_min_pct": 0.0,
+      "vayu_max_pct": 73.7,
+      "published_low_pct": 20.0,
+      "published_high_pct": 30.0,
+      "within_published_range": true
+    }
+  ]
+}
