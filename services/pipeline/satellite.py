@@ -84,6 +84,14 @@ def _apply_gdal_env() -> None:
     os.environ.setdefault("CURL_CA_BUNDLE", certifi.where())
 
 
+# DLR publishes a day under one of two processing streams, and which one varies
+# day to day. OFFL ("offline") is the fully reprocessed product with the better
+# calibration; NRTI ("near-real-time") is the fast preliminary one. We try OFFL
+# first for quality and fall back to NRTI — hardcoding NRTI silently lost 3 of
+# 56 days in the first season ingest, all of which exist as OFFL.
+STREAMS = ("OFFL_01", "NRTI_01")
+
+
 def stac_url(product: str, day: date, stream: str = "NRTI_01") -> str:
     prod = product.upper()
     stamp = day.strftime("%Y%m%d")
@@ -96,26 +104,30 @@ def asset_href(product: str, day: date) -> tuple[str, float, float] | None:
 
     Reading the STAC first costs ~6 KB and removes the need to guess filenames
     or the scale factor — the raster stores integers that only mean something
-    once multiplied by the band's `scale`.
+    once multiplied by the band's `scale`. Streams are tried in STREAMS order.
     """
-    url = stac_url(product, day)
-    try:
-        with urllib.request.urlopen(url, timeout=_HTTP_TIMEOUT, context=_SSL_CTX) as r:  # noqa: S310
-            meta = json.loads(r.read().decode())
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(f"S5P {product} {day}: no STAC ({type(exc).__name__})")
-        return None
-
     key = DLR_PRODUCTS.get(product, product)
-    asset = (meta.get("assets") or {}).get(key)
-    if not asset or not asset.get("href"):
-        logger.warning(f"S5P {product} {day}: STAC has no '{key}' asset")
-        return None
+    for stream in STREAMS:
+        try:
+            with urllib.request.urlopen(
+                stac_url(product, day, stream), timeout=_HTTP_TIMEOUT, context=_SSL_CTX
+            ) as r:  # noqa: S310
+                meta = json.loads(r.read().decode())
+        except Exception:  # noqa: BLE001 — a missing stream is normal, try the next
+            continue
 
-    bands = asset.get("raster:bands") or [{}]
-    scale = float(bands[0].get("scale", 1.0) or 1.0)
-    nodata = float(bands[0].get("nodata", np.nan))
-    return asset["href"], scale, nodata
+        asset = (meta.get("assets") or {}).get(key)
+        if not asset or not asset.get("href"):
+            logger.warning(f"S5P {product} {day} [{stream}]: STAC has no '{key}' asset")
+            continue
+
+        bands = asset.get("raster:bands") or [{}]
+        scale = float(bands[0].get("scale", 1.0) or 1.0)
+        nodata = float(bands[0].get("nodata", np.nan))
+        return asset["href"], scale, nodata
+
+    logger.warning(f"S5P {product} {day}: not published in any of {STREAMS}")
+    return None
 
 
 def read_window(href: str, region: RegionConfig, scale: float, nodata: float) -> np.ma.MaskedArray | None:
