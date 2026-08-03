@@ -21,6 +21,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CITIES_DIR = REPO_ROOT / "config" / "cities"
+REGIONS_DIR = REPO_ROOT / "config" / "regions"
 
 # data.gov.in publishes this key in its own API docs as the open demo key, which
 # is what lets VAYU show real CPCB stations with zero signup. It is rate-limited;
@@ -242,4 +243,125 @@ def list_cities() -> list[CityConfig]:
     return [
         CityConfig.model_validate(json.loads(p.read_text()))
         for p in sorted(CITIES_DIR.glob("*.json"))
+    ]
+
+
+# --- National layer (Problem Statement 3) ------------------------------------
+# A *region* is the national counterpart to a city: where CityConfig describes
+# irregular ward polygons at city scale, RegionConfig describes a regular
+# lat/lon raster grid at country scale. They deliberately coexist rather than
+# one bending into the other — satellite science is gridded, enforcement is
+# jurisdictional, and forcing either into the other's shape loses information.
+
+
+class SourceRegion(BaseModel):
+    """A named emission zone PS-3 Objective-2 asks us to attribute hotspots to."""
+
+    id: str
+    name: str
+    bbox: list[float] = Field(min_length=4, max_length=4)  # [w, s, e, n]
+    kind: Literal["agricultural_residue", "forest_fire", "mixed"] = "mixed"
+
+    def contains(self, lat: float, lon: float) -> bool:
+        w, s, e, n = self.bbox
+        return w <= lon <= e and s <= lat <= n
+
+
+class BurningSeason(BaseModel):
+    """A biomass-burning window. PS-3 scopes Objective-2 to these explicitly."""
+
+    label: str
+    months: list[int]
+    note: str = ""
+
+
+class SatelliteProduct(BaseModel):
+    """One columnar product: where to get it and what the numbers mean."""
+
+    collection: str
+    band: str
+    unit: str
+    label: str
+    qa_band: str | None = None
+    scale: float = 1.0
+    note: str = ""
+
+
+class RegionConfig(BaseModel):
+    id: str
+    name: str
+    timezone: str
+    bbox: list[float] = Field(min_length=4, max_length=4)  # [w, s, e, n]
+    map_center: list[float] = Field(min_length=2, max_length=2)
+    map_zoom: float
+    grid_deg: float = 0.25
+    seasons: dict[str, BurningSeason] = {}
+    source_regions: list[SourceRegion] = []
+    products: dict[str, SatelliteProduct] = {}
+
+    def grid_axes(self) -> tuple[list[float], list[float]]:
+        """Cell-centre latitudes and longitudes of the analysis grid.
+
+        Centres (not edges) so a cell's coordinate is the point its value is
+        attributed to — which is what the DB stores and the map renders.
+        """
+        w, s, e, n = self.bbox
+        d = self.grid_deg
+        lons, lats = [], []
+        x = w + d / 2
+        while x < e:
+            lons.append(round(x, 4))
+            x += d
+        y = s + d / 2
+        while y < n:
+            lats.append(round(y, 4))
+            y += d
+        return lats, lons
+
+    def grid_size(self) -> tuple[int, int]:
+        lats, lons = self.grid_axes()
+        return len(lats), len(lons)
+
+    def snap(self, lat: float, lon: float) -> tuple[float, float]:
+        """Snap an arbitrary point to its grid-cell centre.
+
+        Used to join point data (CPCB stations, FIRMS fire pixels) onto the
+        raster without a spatial index — the grid is regular, so this is pure
+        arithmetic and stays fast over millions of fire detections.
+        """
+        w, s, _, _ = self.bbox
+        d = self.grid_deg
+        gi = int((lat - s) // d)
+        gj = int((lon - w) // d)
+        return (round(s + gi * d + d / 2, 4), round(w + gj * d + d / 2, 4))
+
+    def source_region_for(self, lat: float, lon: float) -> str | None:
+        for sr in self.source_regions:
+            if sr.contains(lat, lon):
+                return sr.id
+        return None
+
+    def is_burning_season(self, month: int) -> str | None:
+        for key, season in self.seasons.items():
+            if month in season.months:
+                return key
+        return None
+
+
+@functools.lru_cache(maxsize=8)
+def load_region(region_id: str) -> RegionConfig:
+    path = REGIONS_DIR / f"{region_id.lower()}.json"
+    if not path.exists():
+        raise KeyError(f"unknown region '{region_id}' (no {path.name} in config/regions/)")
+    return RegionConfig.model_validate(json.loads(path.read_text()))
+
+
+@functools.lru_cache(maxsize=1)
+def list_regions() -> list[RegionConfig]:
+    """Every region is discovered from disk — same rule as cities."""
+    if not REGIONS_DIR.exists():
+        return []
+    return [
+        RegionConfig.model_validate(json.loads(p.read_text()))
+        for p in sorted(REGIONS_DIR.glob("*.json"))
     ]

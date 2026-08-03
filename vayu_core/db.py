@@ -124,6 +124,55 @@ CREATE TABLE IF NOT EXISTS data_status(
   detail TEXT, rows_loaded INT, fetched_ts TIMESTAMPTZ,
   PRIMARY KEY(city, source));
 
+-- ===========================================================================
+-- National layer (Problem Statement 3): gridded satellite science over India.
+-- Grid cells are addressed by their CENTRE coordinate, which RegionConfig.snap()
+-- computes arithmetically — no spatial index needed because the grid is regular.
+-- These tables are keyed by `region`, never `city`: the two layers are parallel,
+-- not nested.
+-- ===========================================================================
+
+-- Columnar concentrations retrieved from satellite (Obj-1 inputs, Obj-2 HCHO).
+-- Daily means: TROPOMI is a sun-synchronous polar orbiter with roughly one
+-- overpass per day, so a finer time axis would be inventing precision.
+CREATE TABLE IF NOT EXISTS satellite_grid(
+  region TEXT,
+  product TEXT,                                    -- hcho|no2|so2|co|o3|aod
+  grid_lat DOUBLE, grid_lon DOUBLE,
+  date DATE,
+  value DOUBLE,                                    -- product-native units
+  unit TEXT,
+  n_obs INT,                                       -- pixels averaged: coverage/quality
+  source TEXT,                                     -- s5p-tropomi|modis-maiac|insat3d|sample
+  PRIMARY KEY(region, product, grid_lat, grid_lon, date));
+
+-- Predicted surface AQI per grid cell — Objective-1's deliverable.
+-- `model_ver` distinguishes the CNN-LSTM from the LightGBM baseline so both
+-- can be stored and compared rather than one silently overwriting the other.
+CREATE TABLE IF NOT EXISTS aqi_grid(
+  region TEXT, grid_lat DOUBLE, grid_lon DOUBLE, date DATE,
+  model_ver TEXT,
+  pm25 DOUBLE, aqi INT, category TEXT,
+  PRIMARY KEY(region, grid_lat, grid_lon, date, model_ver));
+
+-- HCHO hotspots — Objective-2's deliverable. A hotspot is a cell whose HCHO
+-- stands out against its own climatology (z-score), optionally grouped into
+-- spatial clusters and tagged with the source region it falls in.
+CREATE TABLE IF NOT EXISTS hcho_hotspots(
+  region TEXT, date DATE, grid_lat DOUBLE, grid_lon DOUBLE,
+  hcho DOUBLE, baseline DOUBLE, z_score DOUBLE,
+  cluster_id INT,
+  source_region TEXT,                              -- igp_northwest|central_forest|...
+  fire_count INT, fire_frp DOUBLE,
+  PRIMARY KEY(region, date, grid_lat, grid_lon));
+
+-- Fire counts aggregated onto the same grid, so fire<->HCHO correlation is a
+-- plain join rather than a repeated spatial query over ~75k raw detections.
+CREATE TABLE IF NOT EXISTS fire_grid(
+  region TEXT, grid_lat DOUBLE, grid_lon DOUBLE, date DATE,
+  fire_count INT, frp_sum DOUBLE, frp_mean DOUBLE,
+  source_region TEXT,
+  PRIMARY KEY(region, grid_lat, grid_lon, date));
 """
 
 # Provenance labels for measurements.source / data_status.status.
