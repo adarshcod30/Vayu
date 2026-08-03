@@ -21,18 +21,8 @@ from vayu_core.config import get_settings
 
 _write_lock = threading.Lock()
 
-# DuckDB sizes its default buffer pool off *detected* host memory, which is
-# frequently wrong inside a memory-cgroup'd container (Render's free tier is
-# 512MB total, shared with the whole Python process — pandas/LightGBM/boto3
-# alone can be 150-250MB before a single query runs). Left unbounded, DuckDB's
-# own cache can grow past what's left and the OS OOM-kills the instance — this
-# is a documented DuckDB-in-containers footgun, not a VAYU-specific one.
-# Capping it here makes DuckDB spill to disk under pressure instead of taking
-# the process down; every connection (read, write, init) goes through this.
-_DUCKDB_MEMORY_LIMIT = "150MB"
-_DUCKDB_THREADS = 2
-
-
+# DuckDB sizes its buffer pool off detected host memory. Locally that is what
+# we want (unconstrained); set DUCKDB_MEMORY_LIMIT to cap it on a small host.
 def _bound_memory(con: duckdb.DuckDBPyConnection) -> duckdb.DuckDBPyConnection:
     limit = get_settings().duckdb_memory_limit
     if limit:
@@ -134,18 +124,6 @@ CREATE TABLE IF NOT EXISTS data_status(
   detail TEXT, rows_loaded INT, fetched_ts TIMESTAMPTZ,
   PRIMARY KEY(city, source));
 
--- Evidence found by the LLM+web-search scout (L3), for layers with no API:
--- in-force GRAP stage, construction activity, pollution incidents. NEVER an
--- order by itself — every row lands as `pending` and a human promotes or
--- dismisses it. Badged "web-scouted · unverified" wherever it surfaces.
-CREATE TABLE IF NOT EXISTS scouted_evidence(
-  id TEXT PRIMARY KEY, city TEXT,
-  kind TEXT,                                        -- grap_stage|construction|incident
-  title TEXT, summary TEXT, lat DOUBLE, lon DOUBLE,
-  source_url TEXT, source_name TEXT, published TEXT,
-  scouted_ts TIMESTAMPTZ, model TEXT, confidence DOUBLE,
-  status TEXT DEFAULT 'pending',                    -- pending|promoted|dismissed
-  raw_json TEXT);
 """
 
 # Provenance labels for measurements.source / data_status.status.

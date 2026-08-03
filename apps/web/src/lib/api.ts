@@ -146,69 +146,22 @@ export const api = {
     ),
 
   clock: () => get<Clock>("/clock"),
-  demoDates: (cityId: string) => get<{ city: string; dates: DemoDate[] }>(`/demo-dates?city_id=${cityId}`),
-  /** Pin the app clock to an instant (ISO), or null to return to demo/live. */
+  notableDates: (cityId: string) => get<{ city: string; dates: NotableDate[] }>(`/notable-dates?city_id=${cityId}`),
+  /** Pin the app clock to an instant (ISO), or null to clear the pin. */
   setClock: (asOf: string | null) => post<Clock>("/clock", { as_of: asOf }),
-  /** Flip demo/live at runtime. demo_mode=false → live wall clock + a background
-   *  gap-fill for `cityId` (CPCB/OpenAQ + weather + fires + scout) for TODAY. */
-  setMode: (demoMode: boolean, cityId = "delhi") =>
-    post<Clock>("/mode", { demo_mode: demoMode, city_id: cityId }),
-
-  scout: (cityId?: string, status = "pending") => {
-    const q = new URLSearchParams({ status });
-    if (cityId) q.set("city_id", cityId);
-    return get<ScoutList>(`/scout?${q.toString()}`);
-  },
-  scoutRun: (cityId: string) => post<ScoutRun>(`/scout/run?city_id=${cityId}`, {}),
-  scoutPromote: (id: string) => post<{ id: string; status: string }>(`/scout/${encodeURIComponent(id)}/promote`, {}),
-  scoutDismiss: (id: string) => post<{ id: string; status: string }>(`/scout/${encodeURIComponent(id)}/dismiss`, {}),
 };
-
-export interface ScoutItem {
-  id: string;
-  city: string;
-  kind: "grap_stage" | "construction" | "incident";
-  title: string;
-  summary: string;
-  lat: number | null;
-  lon: number | null;
-  source_url: string;
-  source_name: string;
-  published: string;
-  scouted_ts: string | null;
-  model: string;
-  confidence: number;
-  status: string;
-  badge: string;
-}
-export interface ScoutList {
-  enabled: boolean;
-  items: ScoutItem[];
-  count: number;
-}
-export interface ScoutRun {
-  enabled: boolean;
-  reason: string;
-  found: number;
-  written: number;
-  by_kind: Record<string, number>;
-}
 
 export interface Clock {
   now: string;
-  demo_mode: boolean;
-  source: "override" | "demo" | "live";
-  live: boolean;
+  source: "override" | "archive";
   pinned: boolean;
   data_min: string | null;
   data_max: string | null;
   max_selectable: string | null;
-  /** Cities with a live gap-fill in flight; poll until empty, then refetch. */
-  filling?: string[];
 }
 
-/** A curated, pre-scored Demo-mode episode — see meta.py:DEMO_DATES. */
-export interface DemoDate {
+/** A quick-jump episode for the date picker — see meta.py:NOTABLE_DATES. */
+export interface NotableDate {
   at: string;
   label: string;
   aqi: number;
@@ -218,8 +171,7 @@ export interface DemoDate {
 export const queryKeys = {
   health: ["health"] as const,
   clock: ["clock"] as const,
-  demoDates: (cityId: string) => ["demoDates", cityId] as const,
-  scout: (cityId: string, status: string) => ["scout", cityId, status] as const,
+  notableDates: (cityId: string) => ["notableDates", cityId] as const,
   cities: ["cities"] as const,
   current: (cityId: string) => ["current", cityId] as const,
   wards: (cityId: string) => ["wards", cityId] as const,

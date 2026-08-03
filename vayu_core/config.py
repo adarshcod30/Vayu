@@ -55,24 +55,6 @@ class Settings(BaseSettings):
     duckdb_memory_limit: str = ""  # empty string = no artificial cap (unconstrained host RAM locally)
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
-    # -- Live mode (Phase L). All optional; empty = demo/offline behaviour. --
-    aws_region: str = "us-east-1"      # matches the user's IAM + S3 bucket region
-    bedrock_model_id: str = ""
-    search_provider: str = ""          # "tavily" | "brave" | ""
-    tavily_api_key: str = ""
-    brave_api_key: str = ""
-    aws_access_key_id: str = ""
-    aws_secret_access_key: str = ""
-
-    @property
-    def live_mode(self) -> bool:
-        """True when the app should use the wall clock + live feeds."""
-        return not self.demo_mode
-
-    @property
-    def scout_enabled(self) -> bool:
-        """The evidence scout needs a Bedrock model AND a search provider."""
-        return bool(self.bedrock_model_id and self.search_provider)
 
     @property
     def db_path(self) -> Path:

@@ -58,9 +58,6 @@ def _beats_persistence(result: dict) -> bool:
 def retrain() -> int:
     from services.pipeline.score import train_and_score
     from vayu_core.forecast import backtest
-    from vayu_core.storage import pull_hot_db, push_hot_db
-
-    pull_hot_db(overwrite=True)
 
     # 1. Back up current artifacts (if any).
     backup = _backup_dir()
@@ -91,7 +88,6 @@ def retrain() -> int:
         from services.api.scoring import reset_forecaster
 
         reset_forecaster()
-        push_hot_db()
         return 0
 
     logger.warning("REJECTED — new model does not beat persistence; rolling back")
