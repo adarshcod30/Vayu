@@ -42,6 +42,20 @@ class Settings(BaseSettings):
     firms_api_key: str = ""
     anthropic_api_key: str = ""
     gee_service_account_json: str = ""
+
+    # --- Google AI -----------------------------------------------------------
+    # Gemini does two jobs that nothing else in VAYU can do: read a citizen's
+    # photograph and turn it into a structured pollution observation, and write
+    # the plain-language advisory in the reader's own language. Both degrade to
+    # an explicit "unavailable" rather than a fabricated answer when unset —
+    # a guessed pollution reading is worse than no reading.
+    google_api_key: str = ""
+    gemini_model: str = "gemini-2.0-flash"
+    # Vertex path (optional): set both to route through a GCP project instead
+    # of the AI Studio key. Useful when deploying on Cloud Run in the same
+    # project, which is also what the "deployability" story wants.
+    google_cloud_project: str = ""
+    google_cloud_location: str = "asia-south1"
     # Open-Meteo needs NO key: VAYU's entire 1.47M-row weather archive was
     # fetched without one. This exists only for two edge cases:
     #   * the free tier is priced by data volume (locations x hours x variables),
@@ -66,6 +80,11 @@ class Settings(BaseSettings):
     def data_gov_key(self) -> str:
         """User key when supplied, else the portal's published demo key."""
         return self.data_gov_in_api_key or DATA_GOV_PUBLIC_DEMO_KEY
+
+    @property
+    def google_ai_available(self) -> bool:
+        """True when Gemini can actually be called (AI Studio key or Vertex)."""
+        return bool(self.google_api_key or self.google_cloud_project)
 
     def now(self) -> datetime:
         """The app's notion of "now".
