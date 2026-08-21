@@ -29,3 +29,5 @@ npm-debug.log*
 
 # Notebooks
 .ipynb_checkpoints/
+
+data/vayu_deploy.duckdb

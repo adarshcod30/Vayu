@@ -1,0 +1,17 @@
+.git
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+node_modules
+apps/web/node_modules
+apps/web/.next
+data/cache
+data/dossiers
+data/vayu.duckdb
+data/vayu.duckdb.wal
+data/samples
+.env
+*.log
+tests
