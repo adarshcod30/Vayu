@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import ssl
+import time
 import urllib.error
 import urllib.request
 
@@ -28,6 +29,28 @@ _SSL_CTX = ssl.create_default_context(cafile=certifi.where())
 _TIMEOUT = 60
 
 API_ROOT = "https://generativelanguage.googleapis.com/v1beta/models"
+
+# Gemini returns 503 "high demand" and 429 "rate limit" as ordinary, transient
+# conditions — the shared `-latest` aliases do it regularly. Both are worth
+# retrying: a demo that dies because a free-tier endpoint was briefly busy is a
+# self-inflicted failure. 500 is included because Google documents it as
+# retryable. Everything else (401 bad key, 404 retired model, 400 bad request)
+# is a real error and must surface immediately rather than being masked by
+# three slow retries.
+_RETRY_STATUS = {429, 500, 503}
+_MAX_ATTEMPTS = 3
+_BACKOFF_SECONDS = (1.0, 3.0)
+
+# Gemini 3.x models think before answering, and `maxOutputTokens` is a budget
+# for thinking AND output combined. Measured here: a trivial "reply with OK"
+# prompt burned 86-106 tokens on thoughts alone. Ask for 20 and the model
+# spends all of them thinking, hits MAX_TOKENS, and returns an empty candidate
+# with NO error — a silent failure that looks like a broken response body.
+#
+# So the floor is generous, and `thinkingConfig.thinkingBudget = 0` is NOT the
+# fix: this model ignored it. Structured extraction here is short, so paying a
+# few hundred tokens of thinking is cheap insurance against empty replies.
+_MIN_OUTPUT_TOKENS = 800
 
 
 class GeminiUnavailable(RuntimeError):
@@ -64,25 +87,48 @@ def generate(
 
     body: dict = {
         "contents": [{"role": "user", "parts": parts}],
-        "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},
+        "generationConfig": {
+            "temperature": temperature,
+            # Floored: see _MIN_OUTPUT_TOKENS — thinking tokens come out of this
+            # same budget, so a small number yields a silent empty reply.
+            "maxOutputTokens": max(max_tokens, _MIN_OUTPUT_TOKENS),
+        },
     }
     if system:
         body["systemInstruction"] = {"parts": [{"text": system}]}
 
-    req = urllib.request.Request(
-        _endpoint(model or s.gemini_model, s.google_api_key),
-        data=json.dumps(body).encode(),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=_TIMEOUT, context=_SSL_CTX) as r:  # noqa: S310
-            payload = json.loads(r.read().decode())
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode()[:300] if hasattr(exc, "read") else ""
-        raise GeminiUnavailable(f"Gemini HTTP {exc.code}: {detail}") from exc
-    except Exception as exc:  # noqa: BLE001
-        raise GeminiUnavailable(f"Gemini call failed: {type(exc).__name__}: {exc}") from exc
+    used = model or s.gemini_model
+    payload: dict | None = None
+    last: str = ""
+
+    for attempt in range(_MAX_ATTEMPTS):
+        req = urllib.request.Request(
+            _endpoint(used, s.google_api_key),
+            data=json.dumps(body).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=_TIMEOUT, context=_SSL_CTX) as r:  # noqa: S310
+                payload = json.loads(r.read().decode())
+            break
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode()[:300] if hasattr(exc, "read") else ""
+            last = f"HTTP {exc.code}: {detail}"
+            # A retired model names its replacement in the body — surfacing that
+            # verbatim turns a dead end into a one-line fix.
+            if exc.code not in _RETRY_STATUS:
+                raise GeminiUnavailable(f"Gemini {last}") from exc
+        except Exception as exc:  # noqa: BLE001
+            last = f"{type(exc).__name__}: {exc}"
+
+        if attempt < _MAX_ATTEMPTS - 1:
+            wait = _BACKOFF_SECONDS[min(attempt, len(_BACKOFF_SECONDS) - 1)]
+            logger.warning(f"Gemini transient failure ({last}) — retrying in {wait:.0f}s")
+            time.sleep(wait)
+
+    if payload is None:
+        raise GeminiUnavailable(f"Gemini unreachable after {_MAX_ATTEMPTS} attempts — {last}")
 
     candidates = payload.get("candidates") or []
     if not candidates:
@@ -90,11 +136,22 @@ def generate(
         reason = (payload.get("promptFeedback") or {}).get("blockReason", "no candidates")
         raise GeminiUnavailable(f"Gemini returned nothing ({reason})")
 
-    out = "".join(
-        p.get("text", "") for p in (candidates[0].get("content") or {}).get("parts", [])
-    )
+    cand = candidates[0]
+    out = "".join(p.get("text", "") for p in (cand.get("content") or {}).get("parts", []))
+
     if not out.strip():
-        raise GeminiUnavailable("Gemini returned an empty response")
+        # Name the actual cause. The common one is MAX_TOKENS with the whole
+        # budget consumed by thinking, which otherwise presents as a mystery
+        # empty body; the other is a safety stop, which is a different fix.
+        reason = cand.get("finishReason", "unknown")
+        thoughts = (payload.get("usageMetadata") or {}).get("thoughtsTokenCount")
+        if reason == "MAX_TOKENS":
+            raise GeminiUnavailable(
+                f"Gemini hit MAX_TOKENS before emitting any output"
+                f"{f' ({thoughts} tokens spent thinking)' if thoughts else ''} — "
+                f"raise max_tokens above {_MIN_OUTPUT_TOKENS}."
+            )
+        raise GeminiUnavailable(f"Gemini returned an empty response (finishReason={reason})")
     return out
 
 

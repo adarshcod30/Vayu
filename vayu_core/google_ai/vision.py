@@ -169,7 +169,7 @@ def analyse_photo(image_bytes: bytes, mime_type: str = "image/jpeg") -> PhotoObs
             }
         },
     ]
-    raw = generate_json(parts, system=_SYSTEM, temperature=0.0, max_tokens=512)
+    raw = generate_json(parts, system=_SYSTEM, temperature=0.0, max_tokens=2048)
     if not isinstance(raw, dict):
         raise GeminiUnavailable("vision reply was not a JSON object")
 

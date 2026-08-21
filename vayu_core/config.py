@@ -50,7 +50,11 @@ class Settings(BaseSettings):
     # an explicit "unavailable" rather than a fabricated answer when unset —
     # a guessed pollution reading is worse than no reading.
     google_api_key: str = ""
-    gemini_model: str = "gemini-2.0-flash"
+    # Pinned to a concrete version, not the `gemini-flash-latest` alias. The
+    # alias is a shared hot path and returned 503 "high demand" on first try
+    # here; a pinned model is steadier, and model retirement is loud (404 with
+    # the replacement named) rather than a silent behaviour change mid-demo.
+    gemini_model: str = "gemini-3.6-flash"
     # Vertex path (optional): set both to route through a GCP project instead
     # of the AI Studio key. Useful when deploying on Cloud Run in the same
     # project, which is also what the "deployability" story wants.
