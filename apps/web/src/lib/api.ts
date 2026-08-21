@@ -86,6 +86,26 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 export const api = {
+  // --- Citizen + corridors ---------------------------------------------------
+  submitPhoto: async (form: FormData): Promise<CitizenVerdict> => {
+    const res = await fetch(`${BASE}/citizen/report/photo`, { method: "POST", body: form });
+    if (!res.ok) {
+      let detail = `Upload failed (${res.status})`;
+      try {
+        const body = await res.json();
+        detail = body.detail ?? detail;
+      } catch { /* problem+json not returned */ }
+      throw new ApiError(detail, res.status, detail);
+    }
+    return res.json() as Promise<CitizenVerdict>;
+  },
+  citizenReports: (regionId = "india", verdict = "all") =>
+    get<CitizenReportList>(`/citizen/reports?region_id=${regionId}&verdict=${verdict}`),
+  corridors: (regionId = "india") =>
+    get<{ corridors: CorridorSummary[] }>(`/corridors?region_id=${regionId}`),
+  corridorBulletin: (id: string, date: string, regionId = "india") =>
+    get<CorridorBulletin>(`/corridors/${id}/bulletin?date=${date}&region_id=${regionId}`),
+
   health: () => get<Health>("/health"),
   cities: () => get<City[]>("/cities"),
   current: (cityId: string) => get<Current>(`/cities/${cityId}/current`),
@@ -192,4 +212,51 @@ export const queryKeys = {
   audit: ["audit"] as const,
   evaluation: ["evaluation"] as const,
   grap: (cityId: string) => ["grap", cityId] as const,
+  citizenReports: (regionId: string, verdict: string) =>
+    ["citizenReports", regionId, verdict] as const,
+  corridors: (regionId: string) => ["corridors", regionId] as const,
+  corridorBulletin: (id: string, date: string) =>
+    ["corridorBulletin", id, date] as const,
 };
+
+// --- Citizen reports + federated corridors (Code for Communities track) ------
+export interface CitizenVerdict {
+  id: string;
+  verdict: "corroborated" | "unsupported" | "contradicted" | "no_satellite_data" | "unusable";
+  may_influence: boolean;
+  usable: boolean;
+  detail: string;
+  haze_severity: string | null;
+  source_type: string | null;
+}
+
+export interface CitizenReportRow extends CitizenVerdict {
+  lat: number; lon: number; grid_lat: number; grid_lon: number;
+  date: string; reported_ts: string; kind: "photo" | "sensor";
+  visible_smoke: boolean | null; ai_confidence: number | null;
+  ai_reasoning: string | null; ai_model: string | null;
+  pm25: number | null; hcho_z: number | null; fire_count: number | null;
+  verdict_detail: string; note: string | null;
+}
+
+export interface CitizenReportList {
+  region: string; count: number;
+  by_verdict: Record<string, number>;
+  google_ai_enabled: boolean;
+  items: CitizenReportRow[];
+}
+
+export interface CorridorSummary {
+  id: string; name: string; states: string[];
+  cells: number; buffer_deg: number; waypoints: number[][];
+}
+
+export interface CorridorBulletin {
+  schema: string; issued_utc: string; date: string;
+  corridor: { id: string; name: string; states: string[] };
+  coverage: { cells_total: number; cells_observed: number; coverage_pct: number };
+  hcho: { mean: number | null; unit: string; max_anomaly_sigma: number | null; hotspot_cells: number; source: string };
+  fire: { count: number; source: string };
+  citizen: { reports: number; satellite_corroborated: number; note: string };
+  top_hotspots: { lat: number; lon: number; anomaly_sigma: number; fire_count: number; source_region: string | null }[];
+}

@@ -19,6 +19,8 @@ import { DataPills } from "./DataPills";
 const NAV = [
   { label: "Command", href: "/", enabled: true },
   { label: "Interventions", href: "/interventions", enabled: true },
+  { label: "Report", href: "/report", enabled: true },
+  { label: "Corridors", href: "/corridors", enabled: true },
   { label: "Verify", href: "/verify", enabled: true },
   { label: "Methodology", href: "/methodology", enabled: true },
 ];
