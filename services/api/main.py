@@ -20,7 +20,10 @@ from loguru import logger
 
 from vayu_core.config import get_settings
 
-from .routers import attribution, audit, citizen, cities, forecast, grap, interventions, meta, verification
+from .routers import (
+    attribution, audit, citizen, citizen_reports, cities, forecast, grap,
+    interventions, meta, verification,
+)
 
 logger.remove()
 logger.add(sys.stderr, format="<level>{level: <7}</level> {message}", level="INFO")
@@ -115,6 +118,7 @@ app.include_router(attribution.router, prefix="/api/v1")
 app.include_router(interventions.router, prefix="/api/v1")
 app.include_router(verification.router, prefix="/api/v1")
 app.include_router(citizen.router, prefix="/api/v1")
+app.include_router(citizen_reports.router, prefix="/api/v1")
 app.include_router(audit.router, prefix="/api/v1")
 app.include_router(grap.router, prefix="/api/v1")
 app.include_router(grap.approve_router, prefix="/api/v1")

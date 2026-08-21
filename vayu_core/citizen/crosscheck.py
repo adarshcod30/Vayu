@@ -114,13 +114,23 @@ def corroborate(
             f"reported burning" + (f"; HCHO anomaly {z:.1f}σ." if z is not None else "."),
         )
 
-    # A strong HCHO anomaly supports a smoke/haze claim even without a fire
-    # pixel — VIIRS misses small or short-lived fires, and plumes travel.
+    # A strong HCHO anomaly supports a smoke/haze claim regardless of whether
+    # the reporter could name a source. Note the fire clause is built from the
+    # actual count: writing "no fire pixel" unconditionally here produced
+    # explanations that said "no fire pixel" for a cell with 37 detections,
+    # which is exactly the kind of confidently-wrong evidence an official must
+    # never be handed.
     if claims_pollution and z is not None and z >= z_threshold:
+        if fires > 0:
+            why = (
+                f" — {fires} active fire detection(s) in the same cell, though the "
+                f"reporter did not identify a visible source."
+            )
+        else:
+            why = " (no fire pixel — may be a small fire, or a plume that drifted in)."
         return Corroboration(
             CORROBORATED, z, fires,
-            f"HCHO anomaly of {z:.1f}σ in the same cell supports the reported "
-            f"conditions (no fire pixel — may be a small fire or drifted plume).",
+            f"HCHO anomaly of {z:.1f}σ in the same cell supports the reported conditions{why}",
         )
 
     # A confident burning claim where the satellite saw a genuinely normal

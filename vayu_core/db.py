@@ -146,6 +146,38 @@ CREATE TABLE IF NOT EXISTS satellite_grid(
   source TEXT,                                     -- s5p-tropomi|modis-maiac|insat3d|sample
   PRIMARY KEY(region, product, grid_lat, grid_lon, date));
 
+-- Citizen-sourced observations: a photograph read by Gemini vision, or a
+-- low-cost sensor reading. Snapped to the analysis grid so a report can be
+-- joined against the satellite record for the same cell and day.
+--
+-- The verdict columns are the important part. A report is never trusted on
+-- reputation; it carries the result of an independent physics cross-check
+-- (S5P HCHO anomaly + VIIRS fire count for its cell) and only a `corroborated`
+-- verdict is allowed to influence hotspot detection. Rejected and unverified
+-- reports are KEPT, not discarded — they are the audit trail that shows the
+-- filter is working, and deleting them would hide exactly the cases a reviewer
+-- should be able to inspect.
+CREATE TABLE IF NOT EXISTS citizen_reports(
+  id TEXT PRIMARY KEY,
+  region TEXT,
+  lat DOUBLE, lon DOUBLE,                          -- as submitted
+  grid_lat DOUBLE, grid_lon DOUBLE,                -- snapped to the analysis grid
+  date DATE, reported_ts TIMESTAMPTZ,
+  kind TEXT,                                       -- photo|sensor
+  -- Gemini vision output (photo reports)
+  haze_severity TEXT, haze_rank INT,
+  source_type TEXT, visible_smoke BOOLEAN,
+  ai_confidence DOUBLE, ai_reasoning TEXT, ai_model TEXT,
+  usable BOOLEAN,                                  -- outdoor AND confident enough
+  -- Citizen sensor reading (sensor reports); NULL for photos
+  pm25 DOUBLE,
+  -- Independent cross-check against the satellite record
+  verdict TEXT,                                    -- corroborated|unsupported|contradicted|no_satellite_data
+  hcho_z DOUBLE, fire_count INT, verdict_detail TEXT,
+  may_influence BOOLEAN,
+  photo_path TEXT,                                 -- local blob path, not the image itself
+  note TEXT);
+
 -- Predicted surface AQI per grid cell — Objective-1's deliverable.
 -- `model_ver` distinguishes the CNN-LSTM from the LightGBM baseline so both
 -- can be stored and compared rather than one silently overwriting the other.

@@ -53,7 +53,21 @@ def test_hcho_anomaly_alone_corroborates_a_smoke_claim():
         hcho_z=3.1, fire_count=0,
     )
     assert r.verdict == C.CORROBORATED
-    assert "drifted plume" in r.detail or "small fire" in r.detail
+    assert "drifted" in r.detail or "small fire" in r.detail
+
+
+def test_explanation_never_claims_no_fire_when_fires_exist():
+    """Regression for a real bug. A haze report with no named source fell into
+    the HCHO-only branch, whose text hardcoded 'no fire pixel' — so a cell with
+    37 detections was explained to an official as having none. Evidence that is
+    confidently wrong is worse than evidence that is absent."""
+    r = C.corroborate(
+        haze_rank=2, source_type="none_visible", visible_smoke=False,
+        hcho_z=3.2, fire_count=37,
+    )
+    assert r.verdict == C.CORROBORATED
+    assert "no fire pixel" not in r.detail, f"contradicts fire_count=37: {r.detail}"
+    assert "37 active fire" in r.detail
 
 
 def test_confident_burning_claim_with_clean_satellite_is_contradicted():
