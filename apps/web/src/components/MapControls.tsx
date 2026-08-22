@@ -85,6 +85,11 @@ export function LayerChips() {
           >
             {l.icon}
             {l.label}
+            {locked && (
+              <span className="rounded-sm bg-slate-800 px-1 text-[8px] font-semibold uppercase tracking-wide text-slate-500">
+                Soon
+              </span>
+            )}
           </button>
         );
       })}

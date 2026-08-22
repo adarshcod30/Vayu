@@ -51,8 +51,16 @@ def main() -> int:
         )
 
     # Copied whole: these ARE the national demo, and they are already compact.
+    #
+    # `fires` (city-scoped point detections behind the ward-level Evidence
+    # layer and attribution cone) is distinct from `fire_grid` (the national
+    # grid the corridor bulletins read) and was missing from this list —
+    # every deploy silently shipped zero fire evidence for every city while
+    # the source archive held 74k+ real rows, found by comparing row counts
+    # between source and deploy directly, not by reading this list and
+    # assuming it was complete.
     for table in [
-        "satellite_grid", "fire_grid", "aqi_grid", "hcho_hotspots",
+        "satellite_grid", "fire_grid", "fires", "aqi_grid", "hcho_hotspots",
         "stations", "wards", "ward_roads", "permits", "attributions",
         "interventions", "verifications", "grap_drafts", "data_status",
         "citizen_reports",
