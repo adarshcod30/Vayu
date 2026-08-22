@@ -1,9 +1,9 @@
-"""National-layer ingestion (Problem Statement 3): India-wide gridded inputs.
+"""National-layer ingestion: India-wide gridded inputs.
 
 The city pipeline fetches a ~50 km airshed around one municipality. This module
 fetches the whole country and lays it on the RegionConfig analysis grid, which
-is what Objective-2 ("map spatio-temporal HCHO", "correlate with fire counts")
-actually needs.
+is what hotspot detection ("map spatio-temporal HCHO", "correlate with fire
+counts") actually needs.
 
 Currently implemented:
   * FIRMS fire detections over India -> `fire_grid` (daily count / FRP per cell)
@@ -149,8 +149,8 @@ def ingest_fires(region: RegionConfig, start: date, end: date) -> int:
 def season_windows(region: RegionConfig, year: int) -> list[tuple[date, date]]:
     """Contiguous [start, end] windows for the region's burning seasons in `year`.
 
-    PS-3 scopes Objective-2 to biomass-burning periods, so this is both the
-    scientifically right window and what keeps the archive small.
+    Hotspot detection is scoped to biomass-burning periods, so this is both
+    the scientifically right window and what keeps the archive small.
     """
     out: list[tuple[date, date]] = []
     for season in region.seasons.values():

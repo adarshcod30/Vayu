@@ -1,4 +1,4 @@
-"""HCHO hotspot detection + fire coupling (PS-3 Objective-2).
+"""HCHO hotspot detection + fire coupling.
 
 Synthetic data throughout, so every expected answer is known by construction
 rather than eyeballed off a map.

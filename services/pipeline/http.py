@@ -30,7 +30,7 @@ from vayu_core.config import REPO_ROOT
 
 CACHE_DIR = REPO_ROOT / "data" / "cache"
 DEFAULT_TIMEOUT = 60.0
-USER_AGENT = "VAYU/0.1 (ET AI Hackathon 2026; air-quality research prototype)"
+USER_AGENT = "VAYU/0.1 (air-quality research prototype; contact via GitHub repo)"
 
 
 class FetchError(RuntimeError):

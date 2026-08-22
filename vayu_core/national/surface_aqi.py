@@ -1,4 +1,4 @@
-"""Surface AQI from satellite data via a CNN-LSTM — PS-3 Objective-1.
+"""Surface AQI from satellite data via a CNN-LSTM.
 
 **What this is validated on, stated plainly.** The satellite layer (HCHO, NO2,
 SO2, CO, O3, AOD) is genuinely national — 15,360 cells over India. Ground-truth
@@ -20,8 +20,8 @@ already works that way.
       LSTM  5-day sequence of [spatial embedding, meteorology, yesterday's PM2.5]
             -> predicted PM2.5 today
 
-A CNN over a full-India image and an LSTM over years of history is what the
-problem statement's own diagram draws, but a raw pixel-grid CNN needs far more
+A CNN over a full-India image and an LSTM over years of history is the
+textbook approach, but a raw pixel-grid CNN needs far more
 labelled area than 188 point stations provide. Centering the convolution on
 each station's local neighbourhood keeps the spatial-context idea genuine (a
 station's air is not explained by its own cell alone; upwind cells matter) while
@@ -55,7 +55,7 @@ GROUND_TRUTH_CITIES = ("delhi", "delhi_ncr", "lucknow")
 
 PATCH = 1          # cells either side of the station's own cell -> 3x3
 LOOKBACK_DAYS = 5  # LSTM sequence length
-# The full set the problem statement's own diagram specifies. Not every one is
+# The full six-pollutant set this national layer targets. Not every one is
 # necessarily ingested for a given region at a given time — `available_channels`
 # checks the database rather than assuming, so a not-yet-ingested product fails
 # loudly (a clear log line) instead of silently corrupting every sample the way

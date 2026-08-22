@@ -1,7 +1,7 @@
 {
   "generated_utc": "2026-08-22T17:20:08.237945+00:00",
   "model": "cnn-lstm-v1",
-  "objective": "PS-3 Objective-1: surface AQI from satellite data (CNN-LSTM)",
+  "objective": "surface AQI from satellite data (CNN-LSTM)",
   "trained_and_validated_on": {
     "cities": [
       "delhi",

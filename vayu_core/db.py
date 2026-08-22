@@ -125,7 +125,7 @@ CREATE TABLE IF NOT EXISTS data_status(
   PRIMARY KEY(city, source));
 
 -- ===========================================================================
--- National layer (Problem Statement 3): gridded satellite science over India.
+-- National layer: gridded satellite science over India.
 -- Grid cells are addressed by their CENTRE coordinate, which RegionConfig.snap()
 -- computes arithmetically — no spatial index needed because the grid is regular.
 -- These tables are keyed by `region`, never `city`: the two layers are parallel,
@@ -178,7 +178,7 @@ CREATE TABLE IF NOT EXISTS citizen_reports(
   photo_path TEXT,                                 -- local blob path, not the image itself
   note TEXT);
 
--- Predicted surface AQI per grid cell — Objective-1's deliverable.
+-- Predicted surface AQI per grid cell — the CNN-LSTM's deliverable.
 -- `model_ver` distinguishes the CNN-LSTM from the LightGBM baseline so both
 -- can be stored and compared rather than one silently overwriting the other.
 CREATE TABLE IF NOT EXISTS aqi_grid(
@@ -187,7 +187,7 @@ CREATE TABLE IF NOT EXISTS aqi_grid(
   pm25 DOUBLE, aqi INT, category TEXT,
   PRIMARY KEY(region, grid_lat, grid_lon, date, model_ver));
 
--- HCHO hotspots — Objective-2's deliverable. A hotspot is a cell whose HCHO
+-- HCHO hotspots — the hotspot detector's deliverable. A hotspot is a cell whose HCHO
 -- stands out against its own climatology (z-score), optionally grouped into
 -- spatial clusters and tagged with the source region it falls in.
 CREATE TABLE IF NOT EXISTS hcho_hotspots(

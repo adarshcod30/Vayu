@@ -49,7 +49,7 @@ export default function MethodologyPage() {
         <CostComparison />
 
         <footer className="mt-10 border-t border-white/5 pt-4 text-[11px] text-slate-600">
-          Prototype for the ET AI Hackathon 2026. Not an official government system. Regulation text
+          Prototype. Not an official government system. Regulation text
           is an abridged restatement — verify against the current CAQM order before any enforcement.
         </footer>
       </main>

@@ -22,7 +22,7 @@
 - [Feature tour](#feature-tour)
 - [System architecture](#system-architecture)
 - [Tech stack](#tech-stack)
-- [The national satellite layer (ISRO PS-3)](#the-national-satellite-layer-isro-ps-3)
+- [The national satellite layer](#the-national-satellite-layer)
 - [Economic corridors](#economic-corridors)
 - [Citizen reporting + Google Gemini](#citizen-reporting--google-gemini)
 - [Data sources & API keys](#data-sources--api-keys)
@@ -36,38 +36,34 @@
 - [API reference](#api-reference)
 - [Honesty & known limitations](#honesty--known-limitations)
 - [Roadmap](#roadmap)
-- [Project history](#project-history)
+- [Hackathon requirement coverage](#hackathon-requirement-coverage)
 - [License](#license)
 
 ---
 
 ## About
 
-VAYU started as a single-city ("Delhi, winter") air-quality prototype for the
-**ET AI Hackathon 2026** and has since grown through two more targets, each one
-adding a real capability rather than a coat of paint:
+VAYU is a federated, citizen-in-the-loop, Google-AI-native air-quality
+platform built for **Build with AI: Code for Communities**, Track 2 — Clean
+Air & Climate Resilience. It closes the loop from raw signal to verified
+outcome at two scales at once:
 
-1. **ET AI Hackathon** — the original closed-loop engine: forecast → attribute
-   → rank an intervention → dispatch an enforcement order → verify the outcome,
-   for Delhi and Lucknow, on a laptop, with zero mandatory API keys.
-2. **ISRO PS-3 ("Surface AQI & HCHO Hotspots from Satellite Data")** — pushed
-   the same engine to **national scale**: a real 15,360-cell satellite grid
-   over all of India (HCHO, NO₂, SO₂, CO, O₃, AOD), HCHO hotspot detection,
-   VIIRS fire attribution, and a CNN-LSTM that predicts ground-level PM2.5
-   from satellite inputs alone (Objective-1).
-3. **Build with AI: Code for Communities** — added the pieces that make it a
-   *federated, citizen-in-the-loop, Google-AI-native* platform: Gemini Vision
-   reads citizen-submitted pollution photos, a corroboration engine
-   cross-checks every citizen claim against independent satellite/fire
-   evidence before trusting it, and five economic corridors turn the national
-   grid into versioned bulletins any state agency can consume over plain HTTP.
+- **City scale** — a closed-loop enforcement engine: forecast → attribute to
+  a responsible source → rank an intervention → dispatch an enforcement
+  order → verify the outcome, for Delhi, Delhi-NCR and Lucknow, on a laptop,
+  with zero mandatory API keys.
+- **National scale** — a real 15,360-cell satellite grid over all of India
+  (HCHO, NO₂, SO₂, CO, O₃, AOD), HCHO hotspot detection, VIIRS fire
+  attribution, a CNN-LSTM that predicts ground-level PM2.5 from satellite
+  inputs alone, and five economic-corridor bulletins any state agency can
+  consume over plain HTTP.
 
-Every phase's work is still live in the same codebase — nothing was thrown
-away to build the next thing. The result is one system that answers three
-different questions at three different scales: *"what should Delhi's
-enforcement team do this afternoon"*, *"what does India's satellite record
-say happened over the last 60 days"*, and *"can a citizen's photo be trusted
-without anyone driving out to check."*
+Gemini Vision reads citizen-submitted pollution photos into a structured
+observation, and an independent-evidence corroboration engine cross-checks
+every citizen claim against real satellite/fire data before trusting it —
+so the platform is federated (corridors, not cities, as the sharing unit),
+citizen-sourced (photos + sensors, verified rather than taken on faith), and
+built on Google AI (Gemini) by design, not as an add-on.
 
 ## The problem
 
@@ -168,10 +164,7 @@ place-specific artifacts; no code branches on a city or corridor id.
 | **Deployment** | Single-container Google Cloud Run (FastAPI + Next.js in one image, Next proxying `/api/v1` to a local FastAPI process) | One URL, no CORS, no cross-service latency — the whole demo behind one link |
 | **CI-grade hygiene** | pytest, pytest-timeout, ruff | 324 tests; pytest-timeout added after two real multi-hour test hangs were found and fixed this session (see [Honesty & known limitations](#honesty--known-limitations)) |
 
-## The national satellite layer (ISRO PS-3)
-
-Built against ISRO's problem statement *"Surface AQI & HCHO Hotspots from
-Satellite Data."*
+## The national satellite layer
 
 - **Real national coverage.** A 0.25°×0.25° grid over all of India (bbox
   `[68, 6, 98, 38]`, ~15,360 cells), six pollutant channels: **HCHO, NO₂,
@@ -183,7 +176,7 @@ Satellite Data."*
   of extreme days can't hide the rest) per-cell anomaly score against a
   60-day rolling baseline, cross-checked against VIIRS fire counts in the
   same cell/day.
-- **Objective-1: surface AQI from satellite, via CNN-LSTM.** Per station-day,
+- **Surface AQI from satellite, via CNN-LSTM.** Per station-day,
   a small CNN reads a 3×3 satellite patch (5 channels — O₃ is deliberately
   excluded from training; see below) into a spatial embedding; an LSTM
   reads a 5-day sequence of that embedding plus meteorology and yesterday's
@@ -199,7 +192,7 @@ Satellite Data."*
 
   Read honestly: **R = 0.838 is a genuinely strong satellite-driven signal**,
   but the model does not yet beat "today looks like yesterday" on RMSE for
-  this holdout — reported in `docs/objective1_evaluation.json` rather than
+  this holdout — reported in `docs/surface_aqi_evaluation.json` rather than
   hidden. The satellite inputs are national; the *validated* claim is scoped
   to the one corridor with real CPCB + reanalysis history to check it
   against — extending that is a region-config change, not a rewrite (every
@@ -315,8 +308,8 @@ afford to miss. Interval calibration (p10–p90, target 80% coverage): **77.3% /
 overconfident at 72 h, stated not smoothed. Full charts in `docs/img/` and
 `docs/evaluation.md`; regenerate with `make backtest`.
 
-**National surface-AQI (CNN-LSTM, Objective-1)** — see
-[The national satellite layer](#the-national-satellite-layer-isro-ps-3) above
+**National surface-AQI (CNN-LSTM)** — see
+[The national satellite layer](#the-national-satellite-layer) above
 for the full table and honest read.
 
 ## How VAYU differs
@@ -350,7 +343,7 @@ forecaster, scores it, and seeds the demo records — then runs fully offline.
 Setting `GOOGLE_API_KEY` and `GEE_SERVICE_ACCOUNT_JSON` upgrades the citizen
 Gemini analysis and the national NO₂/CO satellite layers from absent to live.
 
-To train Objective-1's CNN-LSTM (a training/offline-scoring-only path, never
+To train the surface-AQI CNN-LSTM (a training/offline-scoring-only path, never
 imported by the live API), install PyTorch separately — it is deliberately
 excluded from `requirements.txt` so the deployed container doesn't carry its
 weight:
@@ -437,7 +430,7 @@ vayu_core/            the science
   geo.py                IDW interpolation, grid snapping
   forecast/             LightGBM quantile forecaster + rolling-origin backtest
   attribution/           evidence fusion, back-trajectory, dispersion cone, ROI
-  national/             satellite_aqi.py — the CNN-LSTM (Objective-1)
+  national/             satellite_aqi.py — the surface-AQI CNN-LSTM
   citizen/               ingest.py, crosscheck.py — photo/sensor intake + corroboration
   google_ai/             client.py (Gemini REST), vision.py (photo classification)
   interventions/         ROI ranking, dossier PDF, GRAP autopilot
@@ -458,7 +451,7 @@ deploy/
 
 data/vayu.duckdb       DuckDB — open it and check every number VAYU claims
 docs/                  DATA_PROVENANCE.md, HOW_IT_WORKS.md, evaluation.md/json,
-                       objective1_evaluation.json
+                       surface_aqi_evaluation.json
 ```
 
 ## Testing
@@ -508,7 +501,7 @@ VAYU's whole design philosophy is *state the scope, don't imply more than the
 data supports.* The concrete list, as of this README:
 
 - **The CNN-LSTM doesn't beat persistence** on RMSE (it does show a strong
-  R = 0.838). Stated in `docs/objective1_evaluation.json`, not hidden.
+  R = 0.838). Stated in `docs/surface_aqi_evaluation.json`, not hidden.
 - **National coverage vs. validated coverage are different claims.** The
   satellite grid is genuinely national; ground-truth CPCB + reanalysis
   history to *validate* a model against exists only for Delhi/Delhi-NCR/
@@ -553,18 +546,23 @@ data supports.* The concrete list, as of this README:
   beyond Delhi-NCR/Lucknow needs national CPCB history + ERA5/IMDAA
   reanalysis access — architecturally a region-config addition, already
   proven out by `config/regions/india.json`.
-- **O₃ back into Objective-1's training set** once its ingestion gaps close
+- **O₃ back into the CNN-LSTM's training set** once its ingestion gaps close
   enough to stop halving the usable 5-day training window.
 
-## Project history
+## Hackathon requirement coverage
 
-Built across three targets without ever starting over:
+Built for **Build with AI: Code for Communities**, Track 2 — Clean Air &
+Climate Resilience. The requirement checklist and where VAYU answers it:
 
-| Hackathon | What it added |
+| Requirement | Where |
 |---|---|
-| **ET AI Hackathon 2026** | The closed-loop engine itself — forecast, attribution, ranked intervention, dispatch, verification, for Delhi and Lucknow |
-| **ISRO PS-3** *(Surface AQI & HCHO Hotspots from Satellite Data)* | National 15,360-cell satellite grid, HCHO hotspot detection, and the CNN-LSTM surface-AQI model (Objective-1) |
-| **Build with AI: Code for Communities** | Google Gemini citizen-photo classification, independent-evidence corroboration, five federated economic-corridor bulletins, and the single-container Cloud Run deployment this README points you to |
+| Mandatory Google AI integration | Gemini Vision classifies every citizen photo report (`vayu_core/google_ai/`) |
+| Federated platform combining citizen data + satellite + meteorology | `/report` (citizen photo/sensor intake) + national satellite grid + Open-Meteo, fused per corridor |
+| Detect hidden pollution hotspots | HCHO hotspot detection against a 60-day rolling per-cell baseline (`vayu_core/national/hotspots.py`) |
+| Forecast spikes across major economic corridors | LightGBM city forecaster + 5 corridor bulletins (`/corridors`) |
+| Interoperability across states | Versioned, self-describing `vayu.corridor.v1` bulletins over plain HTTP — no shared database or model required |
+| National scale, not one city | 15,360-cell satellite grid over all of India; validated ground-truth corridor covers Delhi, Delhi-NCR, Lucknow |
+| Deployed link | [vayu-802568501157.asia-south1.run.app](https://vayu-802568501157.asia-south1.run.app) |
 
 ## License
 

@@ -1,9 +1,8 @@
-"""HCHO hotspot detection and fire coupling — PS-3 Objective-2.
+"""HCHO hotspot detection and fire coupling.
 
-The problem statement asks to "identify hotspots using statistical thresholds or
-clustering methods" and to "analyse correlation between fire activity and HCHO
-levels". Two methodological choices drive everything here, and both are about
-not fooling ourselves:
+The design goal is to identify hotspots using statistical thresholds and to
+analyse correlation between fire activity and HCHO levels. Two methodological
+choices drive everything here, and both are about not fooling ourselves:
 
 **1. Anomaly against each cell's OWN baseline, never a global threshold.**
 HCHO has a strong spatial climatology — the Indo-Gangetic Plain sits well above
@@ -322,7 +321,7 @@ def stratify_by_fire(
 
 
 def summarise_by_source_region(hotspots: pd.DataFrame) -> pd.DataFrame:
-    """Hotspot burden per named source region — PS-3's "identify major source
+    """Hotspot burden per named source region — the "identify major source
     regions" deliverable."""
     if hotspots.empty or "source_region" not in hotspots:
         return pd.DataFrame()

@@ -1,13 +1,13 @@
-"""Periodic live CPCB refresh — the LIVE-mode counterpart of `scripts/live_now_delhi.py`.
+"""Periodic live CPCB refresh, run only in LIVE mode (DEMO_MODE=false).
 
 DEMO_MODE keeps this off entirely (services/api/main.py's lifespan already
 documents why: "a background refresh can never move the ground under a live
 demo"). With DEMO_MODE=false, `settings.now()` is real wall-clock time, so
 without this the app would show a real "now" against data that never
 advances — a station's last reading getting older every minute with nothing
-refilling it. This is the light path: current-hour station readings only, not
-`scripts/live_ingest_delhi.py`'s full historical-weather reseed, which is too
-heavy to run on a schedule.
+refilling it. This is deliberately the light path: current-hour station
+readings only, not a full historical-weather reseed, which is too heavy to
+run on a schedule.
 """
 
 from __future__ import annotations

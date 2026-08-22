@@ -1,4 +1,4 @@
-"""National fire gridding (PS-3 Objective-2 input).
+"""National fire gridding (hotspot-attribution input).
 
 `to_fire_grid` snaps detections with vectorised arithmetic rather than calling
 RegionConfig.snap() per row, because at 10^5-10^6 detections a Python-level loop

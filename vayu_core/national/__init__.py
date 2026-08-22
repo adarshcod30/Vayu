@@ -1,5 +1,6 @@
-"""National-layer science (Problem Statement 3).
+"""National-layer science.
 
-Objective-1 lives in `aqi.py` (satellite columns -> surface AQI).
-Objective-2 lives in `hotspots.py` (HCHO anomalies, clustering, fire coupling).
+Surface AQI from satellite columns lives in `surface_aqi.py`.
+HCHO hotspot detection (anomalies, clustering, fire coupling) lives in
+`hotspots.py`.
 """

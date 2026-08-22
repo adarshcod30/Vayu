@@ -1,4 +1,4 @@
-"""National layer (PS-3): region config + analysis-grid arithmetic.
+"""National layer: region config + analysis-grid arithmetic.
 
 The grid is load-bearing — satellite retrievals, fire counts, CPCB stations and
 model predictions are all joined by snapping to a cell centre. If `snap` is off
@@ -60,7 +60,7 @@ def test_snap_keeps_points_within_half_a_cell(india):
 
 
 def test_source_regions_resolve_for_known_cities(india):
-    """PS-3 Obj-2 asks for source-region identification; these are the anchors."""
+    """Source-region identification; these are the anchors."""
     assert india.source_region_for(*india.snap(30.90, 75.85)) == "igp_northwest"   # Ludhiana
     assert india.source_region_for(*india.snap(26.14, 91.74)) == "northeast_forest"  # Guwahati
     assert india.source_region_for(*india.snap(13.08, 80.27)) == "peninsular"      # Chennai
@@ -77,7 +77,7 @@ def test_burning_seasons_match_the_indian_agricultural_calendar(india):
 
 def test_every_product_declares_units_and_a_band(india):
     """A retrieval with no unit is a number with no meaning."""
-    assert "hcho" in india.products, "HCHO is Objective-2's whole subject"
+    assert "hcho" in india.products, "HCHO is the hotspot detector's whole subject"
     for name, p in india.products.items():
         assert p.band, f"{name} has no band"
         assert p.unit, f"{name} has no unit"

@@ -269,7 +269,7 @@ def list_cities() -> list[CityConfig]:
     ]
 
 
-# --- National layer (Problem Statement 3) ------------------------------------
+# --- National layer -----------------------------------------------------
 # A *region* is the national counterpart to a city: where CityConfig describes
 # irregular ward polygons at city scale, RegionConfig describes a regular
 # lat/lon raster grid at country scale. They deliberately coexist rather than
@@ -278,7 +278,7 @@ def list_cities() -> list[CityConfig]:
 
 
 class SourceRegion(BaseModel):
-    """A named emission zone PS-3 Objective-2 asks us to attribute hotspots to."""
+    """A named emission zone hotspots get attributed to."""
 
     id: str
     name: str
@@ -291,7 +291,7 @@ class SourceRegion(BaseModel):
 
 
 class BurningSeason(BaseModel):
-    """A biomass-burning window. PS-3 scopes Objective-2 to these explicitly."""
+    """A biomass-burning window. Hotspot detection is scoped to these explicitly."""
 
     label: str
     months: list[int]

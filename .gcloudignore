@@ -29,3 +29,5 @@ data/samples
 secrets/
 *.log
 tests
+_archive_not_in_repo/
+.DS_Store

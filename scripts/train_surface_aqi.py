@@ -1,9 +1,9 @@
-"""Train and evaluate the Objective-1 CNN-LSTM, then score the validated corridor.
+"""Train and evaluate the surface-AQI CNN-LSTM, then score the validated corridor.
 
     python -m scripts.train_surface_aqi
 
 Writes:
-  * docs/objective1_evaluation.json — RMSE/MAE/R + the persistence baseline,
+  * docs/surface_aqi_evaluation.json — RMSE/MAE/R + the persistence baseline,
     mirroring the pattern `vayu_core.forecast.backtest` already uses so both
     models' honesty checks live in the same place a reviewer would look.
   * models/artifacts/surface_aqi/{cnn_lstm.pt,norm.json} — the trained weights.
@@ -61,7 +61,7 @@ def main() -> int:
     payload = {
         "generated_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
         "model": SA.MODEL_VERSION,
-        "objective": "PS-3 Objective-1: surface AQI from satellite data (CNN-LSTM)",
+        "objective": "surface AQI from satellite data (CNN-LSTM)",
         "trained_and_validated_on": {
             "cities": list(SA.GROUND_TRUTH_CITIES),
             "note": (
@@ -83,7 +83,7 @@ def main() -> int:
             "model_beats_baseline": beats_persistence,
         },
     }
-    out = REPO_ROOT / "docs" / "objective1_evaluation.json"
+    out = REPO_ROOT / "docs" / "surface_aqi_evaluation.json"
     out.write_text(json.dumps(payload, indent=2))
     logger.info(f"wrote {out}")
 

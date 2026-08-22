@@ -1,4 +1,4 @@
-"""Surface AQI (Objective-1) dataset assembly.
+"""Surface AQI dataset assembly.
 
 Synthetic satellite_grid + measurements + weather_hourly throughout, so every
 expected sample count and value is known by construction — these tests do not

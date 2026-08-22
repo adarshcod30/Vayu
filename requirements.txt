@@ -39,7 +39,7 @@ h3>=4.0
 boto3>=1.34
 rasterio>=1.3
 
-# Objective-1's CNN-LSTM (vayu_core/national/surface_aqi.py) needs torch, but
+# The surface-AQI CNN-LSTM (vayu_core/national/surface_aqi.py) needs torch, but
 # it is deliberately NOT listed here: it is a training/offline-scoring-only
 # dependency, never imported by the API request path, and the deployed
 # container has no reason to carry its weight. Install separately for local

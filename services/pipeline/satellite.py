@@ -1,8 +1,7 @@
-"""S5P/TROPOMI L3 columnar retrievals over India (PS-3 Objective-1 & 2).
+"""S5P/TROPOMI L3 columnar retrievals over India.
 
-Source: DLR's public S5P L3 archive, which the problem statement itself links.
-It needs **no credentials** — unlike Google Earth Engine — which is why it is
-the primary path here:
+Source: DLR's public S5P L3 archive. It needs **no credentials** — unlike
+Google Earth Engine — which is why it is the primary path here:
 
     https://download.geoservice.dlr.de/S5P_TROPOMI/files/L3/YYYY/MM/DD/
         S5P_DLR_NRTI_01_L3_<PROD>_<YYYYMMDD>/
@@ -22,8 +21,9 @@ Two properties of that archive shape this module:
    take the asset href from it, so a stream change does not silently 404.
 
 Products available from DLR: AI ALH AOD ASSA CF COT CTH H2O HCHO O3 SO2 SO2LH
-UVI. **NO2 and CO are not published here** — Objective-1's full multi-pollutant
-set needs Earth Engine for those two, via `ingest_day_gee` below. Stated, not
+UVI. **NO2 and CO are not published here** — the surface-AQI model's full
+multi-pollutant set needs Earth Engine for those two, via `ingest_day_gee`
+below. Stated, not
 silently skipped: `ingest_day` dispatches to GEE automatically when a
 `GEE_SERVICE_ACCOUNT_JSON` is configured, and logs (not raises) when it is not.
 """

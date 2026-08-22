@@ -1,4 +1,4 @@
-"""S5P L3 -> analysis-grid binning (PS-3 Objective-1 & 2 input).
+"""S5P L3 -> analysis-grid binning (surface-AQI + hotspot-detection input).
 
 Network-free: `to_grid` is pure array maths, so it is tested with synthetic
 rasters that make each property checkable by construction.
@@ -107,7 +107,7 @@ def test_metadata_columns_are_stamped(india):
 
 
 def test_no2_and_co_are_flagged_as_unavailable_from_dlr():
-    """PS-3 Obj-1 wants NO2 and CO; DLR does not publish them. The gap is
+    """The surface-AQI model wants NO2 and CO; DLR does not publish them. The gap is
     declared in code so it cannot be silently forgotten."""
     assert "no2" in GEE_ONLY_PRODUCTS
     assert "co" in GEE_ONLY_PRODUCTS

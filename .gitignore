@@ -26,6 +26,7 @@ out/
 .turbo/
 npm-debug.log*
 .DS_Store
+*.tsbuildinfo
 
 # Notebooks
 .ipynb_checkpoints/
@@ -37,3 +38,6 @@ secrets/
 
 # Claude Code local permission settings — machine-specific trust, not shared
 .claude/settings.local.json
+
+# Stale hackathon-branded artifacts kept locally, never committed or deployed
+_archive_not_in_repo/

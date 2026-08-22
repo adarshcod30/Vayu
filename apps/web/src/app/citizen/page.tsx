@@ -267,7 +267,7 @@ function Brief({
       </section>
 
       <p className="mt-6 text-center text-[11px] text-slate-600">
-        Prototype · ET AI Hackathon 2026 · not an official government advisory
+        Prototype · not an official government advisory
       </p>
     </>
   );
