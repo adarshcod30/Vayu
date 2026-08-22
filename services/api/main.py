@@ -31,6 +31,9 @@ logger.add(sys.stderr, format="<level>{level: <7}</level> {message}", level="INF
 settings = get_settings()
 
 
+LIVE_REFRESH_MINUTES = 15
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     # Idempotent CREATE TABLE IF NOT EXISTS — brings older DBs up to the current
@@ -40,11 +43,41 @@ async def lifespan(_: FastAPI):
     init_db()
     mode = "DEMO_MODE (bundled data, clock pinned)" if settings.demo_mode else "LIVE"
     logger.info(f"VAYU API up · {mode} · now={settings.now():%Y-%m-%d %H:%M %Z}")
+
+    scheduler = None
     if settings.demo_mode:
         # APScheduler stays off in DEMO_MODE (TRD §4) so a background refresh
         # can never move the ground under a live demo.
         logger.info("scheduler disabled in DEMO_MODE")
+    else:
+        import datetime as dt
+
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+        from vayu_core.national.surface_aqi import GROUND_TRUTH_CITIES
+        from services.pipeline.live import refresh_live_measurements
+
+        # AsyncIOScheduler runs jobs on its own thread-pool executor, not the
+        # event loop — calling refresh_live_measurements() directly here
+        # instead would block the event loop (and Cloud Run's readiness
+        # check) for as long as the CPCB feed takes, which the smoke test
+        # showed can be tens of seconds under rate-limit backoff for
+        # delhi_ncr's full-national-feed pagination. next_run_time=now fires
+        # the first run through the same non-blocking path instead of
+        # duplicating the call inline.
+        scheduler = AsyncIOScheduler()
+        scheduler.add_job(
+            refresh_live_measurements, "interval",
+            minutes=LIVE_REFRESH_MINUTES, args=[GROUND_TRUTH_CITIES], id="live_cpcb_refresh",
+            next_run_time=dt.datetime.now(),
+        )
+        scheduler.start()
+        logger.info(f"live CPCB refresh scheduled every {LIVE_REFRESH_MINUTES} min for {GROUND_TRUTH_CITIES}")
+
     yield
+
+    if scheduler is not None:
+        scheduler.shutdown(wait=False)
 
 
 app = FastAPI(

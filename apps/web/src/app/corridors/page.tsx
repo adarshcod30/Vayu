@@ -47,6 +47,13 @@ export default function CorridorsPage() {
             agency can consume over plain HTTP, without adopting our database, our
             models, or our code.
           </p>
+          <p className="mt-2 inline-block rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-300/90">
+            Historical case study, not live — satellite/fire coverage here is
+            the archived Oct–Nov 2025 stubble-burning season. City-level AQI
+            elsewhere in VAYU is live; extending this corridor view to a
+            live feed needs a standing daily ingestion job, which isn&apos;t
+            running yet.
+          </p>
         </header>
 
         {list.isPending && <Skeleton className="h-20 w-full" />}

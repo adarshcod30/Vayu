@@ -34,3 +34,6 @@ data/vayu_deploy.duckdb
 
 # GCP/GEE service-account keys — never committed
 secrets/
+
+# Claude Code local permission settings — machine-specific trust, not shared
+.claude/settings.local.json

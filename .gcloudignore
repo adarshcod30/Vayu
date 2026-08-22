@@ -1,0 +1,31 @@
+# Controls what `gcloud run deploy --source .` uploads to Cloud Build.
+#
+# Deliberately NOT just a copy of .gitignore: with no .gcloudignore present,
+# gcloud silently falls back to .gitignore to decide what to upload — which
+# excludes data/vayu_deploy.duckdb (correctly, it's a 247MB generated
+# artifact that has no business in git history) and so also silently excluded
+# it from the deploy upload, failing the build at the `COPY
+# data/vayu_deploy.duckdb` step with "file not found in build context" -
+# found by testing, not by reading the code. This file exists specifically so
+# that exclusion does not carry over: everything below is training-only or
+# local-dev-only weight the deployed image never needs, and nothing below
+# touches the actual deploy database.
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+node_modules
+apps/web/node_modules
+apps/web/.next
+data/cache
+data/dossiers
+data/vayu.duckdb
+data/vayu.duckdb.wal
+data/samples
+.env
+secrets/
+*.log
+tests
