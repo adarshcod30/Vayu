@@ -23,7 +23,9 @@ Two properties of that archive shape this module:
 
 Products available from DLR: AI ALH AOD ASSA CF COT CTH H2O HCHO O3 SO2 SO2LH
 UVI. **NO2 and CO are not published here** — Objective-1's full multi-pollutant
-set needs Earth Engine for those two. Stated, not silently skipped.
+set needs Earth Engine for those two, via `ingest_day_gee` below. Stated, not
+silently skipped: `ingest_day` dispatches to GEE automatically when a
+`GEE_SERVICE_ACCOUNT_JSON` is configured, and logs (not raises) when it is not.
 """
 
 from __future__ import annotations
@@ -39,7 +41,7 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 
-from vayu_core.config import RegionConfig
+from vayu_core.config import RegionConfig, get_settings
 from vayu_core.db import upsert_df, write_conn
 
 BASE = "https://download.geoservice.dlr.de/S5P_TROPOMI/files/L3"
@@ -197,11 +199,125 @@ def to_grid(region: RegionConfig, arr: np.ma.MaskedArray, product: str, day: dat
     return agg[["region", "product", "grid_lat", "grid_lon", "date", "value", "unit", "n_obs", "source"]]
 
 
+_EE_READY: bool | None = None  # tri-state cache: None=untried, True/False=result
+
+
+def _ee_available() -> bool:
+    """Lazily initialise Earth Engine with the configured service account.
+
+    Cached after the first attempt so a missing/broken key logs once per
+    process, not once per product-day. `ee.Initialize` itself is the expensive
+    and the fallible step (network + the project's EE registration), so it
+    happens exactly once.
+    """
+    global _EE_READY
+    if _EE_READY is not None:
+        return _EE_READY
+
+    key_path = get_settings().gee_service_account_json
+    if not key_path:
+        logger.info("GEE_SERVICE_ACCOUNT_JSON not set — no2/co stay unavailable")
+        _EE_READY = False
+        return False
+
+    try:
+        import ee
+
+        info = json.loads(open(key_path).read())  # noqa: PTH123 — reading a local config path
+        creds = ee.ServiceAccountCredentials(info["client_email"], key_path)
+        ee.Initialize(creds)
+        _EE_READY = True
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"Earth Engine init failed ({type(exc).__name__}: {exc}) — no2/co stay unavailable")
+        _EE_READY = False
+    return _EE_READY
+
+
+# GEE images can carry masked (no-retrieval) pixels; unmasking to this sentinel
+# before download makes "no data" unambiguous in the downloaded GeoTIFF, the
+# same role `nodata` plays for the DLR path's `read_window`.
+_GEE_NODATA = -9999.0
+
+# ~0.1deg at the equator. Matches DLR's native grid so a day sourced from GEE
+# bins onto `to_grid` with the same effective resolution as one sourced from
+# DLR — the two are meant to be compared cell-for-cell, not just coexist.
+_GEE_SCALE_M = 11132
+
+
+def ingest_day_gee(region: RegionConfig, product: str, day: date) -> int:
+    """NO2/CO for one region-day, via Earth Engine. Mirrors the DLR path's
+    shape (fetch -> to_grid -> upsert) so both sources land in the same table
+    with the same schema and can be queried without a source-specific branch.
+    """
+    if not _ee_available():
+        return 0
+    spec = region.products.get(product)
+    if spec is None:
+        logger.warning(f"no product spec for {product!r} in region {region.id!r} — cannot ingest via GEE")
+        return 0
+
+    import ee
+
+    w, s, e, n = region.bbox
+    geom = ee.Geometry.Rectangle([w, s, e, n])
+    day_str, next_str = day.isoformat(), (day + timedelta(days=1)).isoformat()
+
+    coll = ee.ImageCollection(spec.collection).select(spec.band).filterDate(day_str, next_str).filterBounds(geom)
+
+    # A day with no TROPOMI orbit crossing the region (this happens for NO2
+    # noticeably more than CO — NO2's UV-VIS retrieval is filtered out by cloud
+    # and aerosol interference far more aggressively than CO's SWIR channel, a
+    # real sensor characteristic and not a bug) makes `.mean()` return a
+    # zero-band image. `.unmask()` on that then raises rather than returning an
+    # empty result, so the empty-collection case is handled explicitly here
+    # instead of being funnelled through a generic try/except that would log it
+    # identically to a real network failure.
+    if coll.size().getInfo() == 0:
+        logger.warning(f"GEE {product} {day}: no orbit passes over {region.id} this day")
+        return 0
+
+    # .mean() over the day's orbits: TROPOMI's OFFL collection can carry more
+    # than one overlapping pass per day, and averaging overlaps is the same
+    # choice DLR's own L3 product makes rather than keeping only the latest.
+    img = coll.mean().unmask(_GEE_NODATA)
+
+    try:
+        url = img.getDownloadURL(
+            {"region": geom, "scale": _GEE_SCALE_M, "format": "GEO_TIFF", "crs": "EPSG:4326"}
+        )
+        with urllib.request.urlopen(url, timeout=_HTTP_TIMEOUT, context=_SSL_CTX) as r:  # noqa: S310
+            tif_bytes = r.read()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"GEE {product} {day} download failed: {exc}")
+        return 0
+
+    import rasterio
+
+    try:
+        with rasterio.io.MemoryFile(tif_bytes) as mem, mem.open() as ds:
+            arr = ds.read(1, masked=False).astype("float64")
+            arr = np.ma.masked_where(np.isclose(arr, _GEE_NODATA, rtol=1e-6), arr)
+            arr *= spec.scale
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"GEE {product} {day}: could not read downloaded GeoTIFF: {exc}")
+        return 0
+
+    grid = to_grid(region, arr, product, day, spec.unit)
+    if grid.empty:
+        logger.warning(f"GEE {product} {day}: no valid pixels over {region.id}")
+        return 0
+    grid["source"] = "s5p-tropomi-gee"
+
+    with write_conn() as con:
+        n = upsert_df(con, "satellite_grid", grid, ["region", "product", "grid_lat", "grid_lon", "date"])
+    logger.info(f"[{region.id}] {product} {day}: {n:,} cells (mean {grid['value'].mean():.3e} {spec.unit}) via GEE")
+    return n
+
+
 def ingest_day(region: RegionConfig, product: str, day: date) -> int:
     """Fetch one product-day for the region and persist it. Returns rows written."""
     if product in GEE_ONLY_PRODUCTS:
-        logger.warning(f"{product} is not published by DLR — needs Earth Engine; skipping")
-        return 0
+        return ingest_day_gee(region, product, day)
 
     found = asset_href(product, day)
     if found is None:

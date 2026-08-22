@@ -31,3 +31,6 @@ npm-debug.log*
 .ipynb_checkpoints/
 
 data/vayu_deploy.duckdb
+
+# GCP/GEE service-account keys — never committed
+secrets/
