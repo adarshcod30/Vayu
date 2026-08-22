@@ -1,0 +1,33 @@
+{
+  "generated_utc": "2026-08-22T17:20:08.237945+00:00",
+  "model": "cnn-lstm-v1",
+  "objective": "PS-3 Objective-1: surface AQI from satellite data (CNN-LSTM)",
+  "trained_and_validated_on": {
+    "cities": [
+      "delhi",
+      "delhi_ncr",
+      "lucknow"
+    ],
+    "note": "Ground-truth CPCB readings and meteorological reanalysis exist only for this corridor. The satellite inputs are genuinely national; extending validated coverage needs national CPCB history + ERA5/IMDAA reanalysis access, which is a region-config change in this codebase's existing architecture, not a rewrite."
+  },
+  "satellite_channels": [
+    "hcho",
+    "no2",
+    "so2",
+    "co",
+    "aod"
+  ],
+  "n_train": 1930,
+  "n_holdout": 1322,
+  "holdout_period": "2025-11-16 onward",
+  "metrics": {
+    "rmse_ugm3": 51.14,
+    "mae_ugm3": 39.01,
+    "pearson_r": 0.838
+  },
+  "baseline": {
+    "method": "persistence (yesterday's PM2.5)",
+    "rmse_ugm3": 43.37,
+    "model_beats_baseline": false
+  }
+}

@@ -65,6 +65,12 @@ FIRE_REGIONAL_MAX_KM = 300.0
 FIRE_REGIONAL_HOURS = 48
 FIRE_REGIONAL_HALF_ANGLE = 30.0
 
+# Caps the (hours x nearby_fires) broadcast in `_add_fires` to roughly this
+# many elements per allocation, regardless of how many hours of history or how
+# many in-range fires a station has — see that function's docstring for why
+# this bound exists.
+_FIRE_ROW_CHUNK_ELEMENTS = 5_000_000
+
 WEATHER_COLUMNS = [
     "u",
     "v",
@@ -396,6 +402,19 @@ def _add_fires(df: pd.DataFrame, fires: pd.DataFrame, stations: pd.DataFrame) ->
     seed. Here the geometry (distance, bearing) is computed once per station
     against all fires, the far ones are dropped, and the time/bearing test runs
     as a numpy (hours x nearby_fires) broadcast.
+
+    That (hours x nearby_fires) broadcast is itself chunked along the hours
+    axis (`_FIRE_ROW_CHUNK`). Dropping far fires bounds the fires axis, but
+    nothing originally bounded the hours axis — fine when this was written
+    against a few months of history and ~4.4k detections, but `measurements`
+    has since grown to 9 years of hourly rows per station and `fires` to
+    ~21k detections. windowed=False (only ever exercised by the full-vs-
+    windowed equivalence test, never by live scoring) then tries to build one
+    dense array of tens of billions of elements per station — not slow, an
+    out-of-memory swap-thrashing hang. Found by testing (a "hung" 2+ hour test
+    run with zero growing CPU time — i.e. blocked on memory, not looping), not
+    by reading the code. Chunking makes no numerical difference; it only caps
+    how much of the same computation happens per allocation.
     """
     fire_cols = [
         "upwind_fire_frp_24h",
@@ -445,31 +464,39 @@ def _add_fires(df: pd.DataFrame, fires: pd.DataFrame, stations: pd.DataFrame) ->
         brg = (np.degrees(np.arctan2(dlon[keep], dlat[keep])) + 360) % 360
         frp_k = f_frp[keep]
         ts_k = f_ts[keep]
-
-        # (hours x fires) broadcasts.
-        age_h = (row_ts[idx][:, None] - ts_k[None, :]) / np.timedelta64(1, "h")
-        bear = upwind_bearing[idx][:, None]
-        diff = np.abs((brg[None, :] - bear + 180.0) % 360.0 - 180.0)
-
-        local_hit = (
-            (age_h >= 0) & (age_h <= FIRE_LOCAL_HOURS)
-            & (d_k[None, :] <= FIRE_LOCAL_KM)
-            & (diff <= UPWIND_HALF_ANGLE)
-        )
-        local[idx] = np.where(local_hit, frp_k[None, :], 0.0).sum(axis=1)
-
-        reg_hit = (
-            (age_h >= 0) & (age_h <= FIRE_REGIONAL_HOURS)
-            & (d_k[None, :] > FIRE_REGIONAL_MIN_KM)
-            & (d_k[None, :] <= FIRE_REGIONAL_MAX_KM)
-            & (diff <= FIRE_REGIONAL_HALF_ANGLE)
-        )
-        # Distance-decayed FRP: 250 km of atmosphere dilutes a plume, so a fire
-        # at the far edge cannot count the same as one at 60 km. e-folding at
-        # 150 km is the same decay scale the attribution fusion uses.
         decay = np.exp(-d_k / 150.0)[None, :]
-        regional[idx] = np.where(reg_hit, frp_k[None, :] * decay, 0.0).sum(axis=1)
-        regional_n[idx] = reg_hit.sum(axis=1)
+
+        # Bound the per-allocation (hours x fires) array to roughly
+        # _FIRE_ROW_CHUNK_ELEMENTS regardless of how many hours of history or
+        # how many nearby fires this station has.
+        rows_per_chunk = max(1, _FIRE_ROW_CHUNK_ELEMENTS // d_k.size)
+        for start in range(0, idx.size, rows_per_chunk):
+            chunk = idx[start : start + rows_per_chunk]
+
+            # (hours x fires) broadcasts, one bounded chunk at a time.
+            age_h = (row_ts[chunk][:, None] - ts_k[None, :]) / np.timedelta64(1, "h")
+            bear = upwind_bearing[chunk][:, None]
+            diff = np.abs((brg[None, :] - bear + 180.0) % 360.0 - 180.0)
+
+            local_hit = (
+                (age_h >= 0) & (age_h <= FIRE_LOCAL_HOURS)
+                & (d_k[None, :] <= FIRE_LOCAL_KM)
+                & (diff <= UPWIND_HALF_ANGLE)
+            )
+            local[chunk] = np.where(local_hit, frp_k[None, :], 0.0).sum(axis=1)
+
+            reg_hit = (
+                (age_h >= 0) & (age_h <= FIRE_REGIONAL_HOURS)
+                & (d_k[None, :] > FIRE_REGIONAL_MIN_KM)
+                & (d_k[None, :] <= FIRE_REGIONAL_MAX_KM)
+                & (diff <= FIRE_REGIONAL_HALF_ANGLE)
+            )
+            # Distance-decayed FRP: 250 km of atmosphere dilutes a plume, so a
+            # fire at the far edge cannot count the same as one at 60 km.
+            # e-folding at 150 km is the same decay scale the attribution
+            # fusion uses.
+            regional[chunk] = np.where(reg_hit, frp_k[None, :] * decay, 0.0).sum(axis=1)
+            regional_n[chunk] = reg_hit.sum(axis=1)
 
     df["upwind_fire_frp_24h"] = local
     df["upwind_fire_frp_regional_48h"] = regional
