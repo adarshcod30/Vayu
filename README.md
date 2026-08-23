@@ -1,189 +1,237 @@
+<div align="center">
+
 # VAYU — Verifiable Airshed Intelligence & Enforcement
 
-**Dashboards measure pollution. VAYU prosecutes it — and now sees the whole country doing it.**
+**Dashboards measure pollution. VAYU prosecutes it — and sees the whole country doing it.**
 
-[![Live Demo](https://img.shields.io/badge/live%20demo-vayu--802568501157.asia--south1.run.app-22D3EE?style=for-the-badge)](https://vayu-802568501157.asia-south1.run.app)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square)](https://www.python.org/)
-[![Next.js 16](https://img.shields.io/badge/next.js-16-black?style=flat-square)](https://nextjs.org/)
-[![FastAPI](https://img.shields.io/badge/api-FastAPI-009688?style=flat-square)](https://fastapi.tiangolo.com/)
-[![DuckDB](https://img.shields.io/badge/db-DuckDB-FFF000?style=flat-square)](https://duckdb.org/)
-[![Tests](https://img.shields.io/badge/tests-324%20passing-brightgreen?style=flat-square)](#testing)
-[![Deployed on Cloud Run](https://img.shields.io/badge/deployed-Google%20Cloud%20Run-4285F4?style=flat-square)](https://cloud.google.com/run)
+*वायु — "wind, air, the breath of life."*
 
-> **[→ Open the live deployment](https://vayu-802568501157.asia-south1.run.app)** — no signup, no install. Everything described below is running there right now.
+[![Live Demo](https://img.shields.io/badge/Live-Cloud_Run-4285F4?style=for-the-badge)](https://vayu-802568501157.asia-south1.run.app)
+[![Tests](https://img.shields.io/badge/tests-324%2F324_passing-22C55E?style=for-the-badge)](#testing)
+[![Google AI](https://img.shields.io/badge/Google_AI-Gemini-8E75B2?style=for-the-badge)](#citizen-reporting--google-gemini)
+[![National](https://img.shields.io/badge/coverage-15%2C360_cell_national_grid-FFB020?style=for-the-badge)](#the-national-satellite-layer)
+
+**[Live Application](https://vayu-802568501157.asia-south1.run.app)** ·
+**[API Docs](https://vayu-802568501157.asia-south1.run.app/docs)** ·
+**[Methodology](https://vayu-802568501157.asia-south1.run.app/methodology)** ·
+**[Corridors](https://vayu-802568501157.asia-south1.run.app/corridors)**
+
+*Build with AI: Code for Communities · Track 2 — Clean Air & Climate Resilience*
+
+</div>
+
+---
+
+<div align="center">
+
+| | | | | | |
+|:--:|:--:|:--:|:--:|:--:|:--:|
+| **15,360** | **6** | **5** | **74,386** | **0.838** | **324** |
+| national grid cells | satellite pollutant channels | economic corridors | real fire detections | CNN-LSTM Pearson r | tests passing |
+
+*Every figure above is read from the actual running system — the deploy database, the test suite, and `docs/surface_aqi_evaluation.json` — not asserted.*
+
+</div>
 
 ---
 
 ## Table of contents
 
-- [About](#about)
 - [The problem](#the-problem)
 - [What VAYU does](#what-vayu-does)
-- [Feature tour](#feature-tour)
+- [A five-minute tour](#a-five-minute-tour)
+- [Screens](#screens)
 - [System architecture](#system-architecture)
-- [Tech stack](#tech-stack)
 - [The national satellite layer](#the-national-satellite-layer)
 - [Economic corridors](#economic-corridors)
 - [Citizen reporting + Google Gemini](#citizen-reporting--google-gemini)
+- [Two bugs found by testing, not by reading](#two-bugs-found-by-testing-not-by-reading)
+- [The dataset](#the-dataset)
 - [Data sources & API keys](#data-sources--api-keys)
 - [Model performance](#model-performance)
 - [How VAYU differs](#how-vayu-differs)
+- [Tech stack](#tech-stack)
 - [Getting started](#getting-started)
 - [Environment variables](#environment-variables)
 - [Deployment](#deployment)
 - [Project structure](#project-structure)
 - [Testing](#testing)
 - [API reference](#api-reference)
-- [Honesty & known limitations](#honesty--known-limitations)
+- [Known limitations](#known-limitations)
 - [Roadmap](#roadmap)
 - [Hackathon requirement coverage](#hackathon-requirement-coverage)
 - [License](#license)
 
 ---
 
-## About
-
-VAYU is a federated, citizen-in-the-loop, Google-AI-native air-quality
-platform built for **Build with AI: Code for Communities**, Track 2 — Clean
-Air & Climate Resilience. It closes the loop from raw signal to verified
-outcome at two scales at once:
-
-- **City scale** — a closed-loop enforcement engine: forecast → attribute to
-  a responsible source → rank an intervention → dispatch an enforcement
-  order → verify the outcome, for Delhi, Delhi-NCR and Lucknow, on a laptop,
-  with zero mandatory API keys.
-- **National scale** — a real 15,360-cell satellite grid over all of India
-  (HCHO, NO₂, SO₂, CO, O₃, AOD), HCHO hotspot detection, VIIRS fire
-  attribution, a CNN-LSTM that predicts ground-level PM2.5 from satellite
-  inputs alone, and five economic-corridor bulletins any state agency can
-  consume over plain HTTP.
-
-Gemini Vision reads citizen-submitted pollution photos into a structured
-observation, and an independent-evidence corroboration engine cross-checks
-every citizen claim against real satellite/fire data before trusting it —
-so the platform is federated (corridors, not cities, as the sharing unit),
-citizen-sourced (photos + sensors, verified rather than taken on faith), and
-built on Google AI (Gemini) by design, not as an add-on.
-
 ## The problem
 
 India runs 900+ CAAQMS air-quality monitoring stations, yet a 2024 CAG audit
 found **69% of monitored cities have no actionable response protocol**
-connected to those readings. Existing systems stop at measurement (CPCB
-SAMEER), forecast (SAFAR, 4 cities), or attribution without action (IITM's
-Delhi DSS — Delhi-only, winter-only, supercomputer-bound). None of them close
-the loop, none of them work outside a handful of metros, and none of them let
-a citizen's own photo become verified evidence.
+connected to those readings.
+
+| Today | Consequence |
+|---|---|
+| CPCB SAMEER measures, but does not act | A reading with no owner and no deadline |
+| SAFAR forecasts, but only 4 cities | Everywhere else flies blind on tomorrow |
+| IITM's Delhi DSS attributes sources — Delhi-only, winter-only, supercomputer-bound | Not something a smaller city, or a different season, can run |
+| No system federates across state lines | Pollution crosses seven states on the Amritsar–Kolkata corridor; no bulletin does |
+| No system verifies a citizen's own evidence | A photo report is either ignored or trusted blindly — never checked |
+
+VAYU closes every one of those gaps in the same codebase, at two scales at once.
 
 ## What VAYU does
 
-The atomic unit of value is not a chart — it is an **Intervention Order**: a
-dispatch-ready evidence dossier (PDF, with a map, an evidence table, a
-regulation citation, a predicted impact and a sign-off block) that a
-commissioner can act on and that VAYU later checks actually worked.
+<table>
+<tr><td width="33%" valign="top">
 
+### 🏙️ City enforcement loop
+
+**Closed-loop engine**
+`READING → RESPONSIBLE SOURCE → RANKED INTERVENTION → ENFORCEMENT ORDER → VERIFIED OUTCOME`,
+for Delhi, Delhi-NCR and Lucknow, on a laptop, zero mandatory keys.
+
+**Dispatch-ready dossiers**
+A ranked intervention becomes a PDF with a map, an evidence table, a
+regulation citation, a predicted impact and a sign-off block — not a chart.
+
+**Outcome verification**
+Difference-in-differences against real CPCB history, with a confidence
+interval and an honest null-result verdict when the data says so.
+
+</td><td width="33%" valign="top">
+
+### 🛰️ National satellite intelligence
+
+**15,360-cell grid over India**
+Six pollutant channels (HCHO, NO₂, SO₂, CO, O₃, AOD) from two independent
+satellite sources, unified into one schema.
+
+**HCHO hotspot detection**
+Robust per-cell anomaly scoring (median/MAD, not mean/std) against a 60-day
+baseline, cross-checked against real VIIRS fire counts.
+
+**Surface AQI from orbit alone**
+A CNN-LSTM predicts ground-level PM2.5 from satellite inputs — evaluated
+honestly, including where it does *not* beat its own baseline.
+
+</td><td width="33%" valign="top">
+
+### 🤝 Citizen + Google AI
+
+**Gemini Vision**
+Reads a citizen's pollution photo into a structured observation — haze
+severity, likely source, confidence — never a guessed numeric AQI.
+
+**Independent-evidence corroboration**
+A citizen's claim is trusted only when real satellite/fire data in the same
+cell/day backs it up — never by reporter reputation.
+
+**Federated corridor bulletins**
+Five economic corridors, each a versioned (`vayu.corridor.v1`),
+self-describing daily bulletin any state can consume over plain HTTP.
+
+</td></tr>
+</table>
+
+---
+
+## A five-minute tour
+
+The fastest way to understand VAYU is to click through it in this order, on
+the [live application](https://vayu-802568501157.asia-south1.run.app):
+
+```mermaid
+flowchart LR
+    C["<b>1 · Command</b><br/>Delhi AQI 403, Severe<br/>the scale of the episode"]
+    I["<b>2 · Interventions</b><br/>ROI-ranked leaderboard<br/>dispatch → dossier PDF"]
+    R["<b>3 · Corridors</b><br/>the IGP stubble spine<br/>7 states, one bulletin"]
+    P["<b>4 · Report</b><br/>submit a photo →<br/>Gemini + satellite cross-check"]
+    V["<b>5 · Verify</b><br/>did the order<br/>actually work?"]
+    C --> I --> R --> P --> V
 ```
-READING → RESPONSIBLE SOURCE → RANKED INTERVENTION → ENFORCEMENT ORDER → VERIFIED OUTCOME
-```
 
-That loop runs at city scale (Delhi, Delhi-NCR, Lucknow) on real CPCB station
-history. Layered on top of it, a second loop runs at country scale:
-
-```
-SATELLITE GRID → HOTSPOT / CNN-LSTM SURFACE AQI → CORRIDOR BULLETIN → CITIZEN CROSS-CHECK
-```
-
-## Feature tour
-
-Every route below is live on the [deployed instance](https://vayu-802568501157.asia-south1.run.app):
-
-| Surface | Route | What it does |
+| Stop | What to look at | Why it matters |
 |---|---|---|
-| **Command Center** | `/` | Live ward choropleth, stations, hazard alerts, trajectory/dispersion cone, KPIs; Delhi ↔ Lucknow in < 2 s |
+| **1 · Command** | The ward choropleth and hazard-alert rail | 290 real wards, colour-coded by real CPCB-derived AQI, not a placeholder map |
+| **2 · Interventions** | Expand a candidate's rationale | Every ROI number cites *which* evidence it came from — click through to the source |
+| **3 · Corridors** | Switch to the IGP spine, change the date | Coverage is shown next to every number — a cell the satellite couldn't see is never mistaken for a clean one |
+| **4 · Report** | Submit a photo, or read `/api/v1/citizen/reports` | The corroboration verdict names the real HCHO z-score or fire count behind it |
+| **5 · Verify** | Read a dispatched order's diff-in-diff result | Includes a real order that came back statistically insignificant — shown, not hidden |
+
+> **The one thing to click:** an evidence link on the Interventions page. Everything
+> else is a number — that link is the proof behind it.
+
+---
+
+## Screens
+
+| Screen | Route | What it shows |
+|---|---|---|
+| **Command Center** | `/` | Ward choropleth, stations, hazard alerts, trajectory/dispersion cone, KPIs, Delhi ↔ Lucknow in < 2 s |
 | **Interventions** | `/interventions` | ROI-ranked leaderboard, expandable counterfactuals, one-click dispatch → dossier PDF, GRAP Autopilot card |
 | **Inspector** | `/inspector` | Mobile order list, evidence checklist, dossier download, mark-executed |
-| **Verify** | `/verify` | Difference-in-differences: predicted vs. observed, with a confidence interval and a null-result verdict when honest |
-| **Corridors** | `/corridors` | Five national economic corridors, each with a versioned (`vayu.corridor.v1`) daily bulletin: satellite coverage, HCHO hotspots, fire counts, citizen corroboration |
-| **Citizen report** | `/report` | Submit a pollution photo or sensor reading; Gemini Vision classifies it, satellite/fire evidence corroborates or flags it |
+| **Verify** | `/verify` | Difference-in-differences: predicted vs. observed, with a confidence interval |
+| **Corridors** | `/corridors` | Five national economic corridors, each with a versioned daily bulletin |
+| **Citizen report** | `/report` | Submit a pollution photo or sensor reading; Gemini + satellite/fire cross-check it |
 | **Public Citizen view** | `/citizen` | Public AQI + clean-hours + health advisories in **English, हिंदी, ਪੰਜਾਬੀ** |
-| **Methodology** | `/methodology` | Backtest tables, the formulas, and a limitations section written for a skeptical judge |
+| **Methodology** | `/methodology` | Backtest tables, formulas, and a limitations section written for a skeptical judge |
 | **Agent Activity drawer** | everywhere | Streams every automated decision with its reasoning and confidence (SSE) |
+
+---
 
 ## System architecture
 
-```
-                     ┌─────────────────────────────────────────────┐
-                     │         apps/web  (Next.js 16 / React 19)     │
-                     │  Command · Interventions · Corridors · Report │
-                     └───────────────────────┬───────────────────────┘
-                                              │ /api/v1  (same-origin, proxied)
-                     ┌───────────────────────▼───────────────────────┐
-                     │            services/api  (FastAPI)             │
-                     │  meta · cities · forecast · attribution ·      │
-                     │  interventions · verification · citizen ·      │
-                     │  citizen_reports · corridors · grap · audit    │
-                     └──────┬───────────────────────────┬─────────────┘
-                             │                            │
-          ┌──────────────────▼───────────────┐  ┌─────────▼──────────────────┐
-          │           vayu_core                │  │      services/pipeline      │
-          │  aqi · geo/IDW · forecast          │  │  cpcb · openaq · firms ·     │
-          │  (LightGBM) · attribution          │  │  meteo · osm · s5p (DLR) ·   │
-          │  (evidence fusion + trajectory) ·  │  │  satellite (GEE) · seed ·    │
-          │  dispersion (Gaussian plume) ·     │  │  live (periodic CPCB) ·      │
-          │  interventions (ROI+dossier) ·     │  │  national                    │
-          │  national/surface_aqi (CNN-LSTM) · │  └─────────────────────────────┘
-          │  citizen (ingest+crosscheck) ·     │
-          │  google_ai (Gemini client+vision)  │
-          └──────────────────┬──────────────────┘
-                              │
-                    ┌─────────▼─────────┐
-                    │  data/vayu.duckdb   │   one embedded OLAP file —
-                    │  (single-file OLAP) │   open it, check any number
-                    └─────────────────────┘
+```mermaid
+flowchart TB
+    subgraph CLIENT["apps/web — Next.js 16 / React 19"]
+        WEB["Command · Interventions · Corridors · Report<br/>MapLibre GL · TanStack Query · Zustand"]
+    end
+    subgraph API["services/api — FastAPI"]
+        ROUTERS["33 endpoints across 11 routers<br/>meta · cities · forecast · attribution ·<br/>interventions · verification · citizen ·<br/>citizen_reports · corridors · grap · audit"]
+    end
+    subgraph CORE["vayu_core — the science"]
+        SCI["aqi · geo/IDW · forecast (LightGBM)<br/>attribution (evidence fusion + trajectory)<br/>dispersion (Gaussian plume) · interventions<br/>national/surface_aqi (CNN-LSTM)<br/>citizen (ingest + crosscheck) · google_ai (Gemini)"]
+    end
+    subgraph PIPE["services/pipeline — ingestors"]
+        ING["cpcb · openaq · firms · meteo · osm<br/>s5p (DLR, keyless) · satellite (GEE)<br/>live (periodic CPCB refresh) · national"]
+    end
+    subgraph DB[("data/vayu.duckdb<br/>single-file OLAP")]
+    end
+
+    WEB -- "/api/v1, same-origin proxied" --> ROUTERS
+    ROUTERS --> SCI
+    ROUTERS --> DB
+    SCI --> DB
+    PIPE --> DB
 ```
 
 A city is one config file. `config/cities/{delhi,delhi_ncr,lucknow}.json` and
 `config/regions/india.json` / `config/corridors/india.json` are the only
 place-specific artifacts; no code branches on a city or corridor id.
 
-## Tech stack
-
-| Layer | What | Why |
-|---|---|---|
-| **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS, TanStack Query, Zustand | App Router SSR + one static build baked into the deploy image; TanStack Query owns all server-state caching, Zustand owns UI-only state (selected ward, layer toggles) |
-| **Map** | MapLibre GL 5 (native vector/raster layers), deck.gl | Chosen over a deck.gl-only stack for reliable hit-testing, feature-state hover/selection and GPU-side data-driven styling with no version coupling between two GL renderers — see `MapCanvas.tsx`'s own design note |
-| **Charts** | Recharts, Framer Motion | Forecast bands, ROI leaderboards, corridor stat tiles |
-| **API** | FastAPI, Pydantic v2, Uvicorn | RFC 7807 problem+json errors everywhere; every route answers even against an unseeded DB |
-| **Database** | DuckDB (single embedded file, no server) | Columnar OLAP fast enough to score 290 wards live and small enough to bake into a container image; `data/vayu.duckdb` — open it yourself |
-| **Forecasting** | LightGBM (quantile regression, p10/p50/p90) | Rolling-origin backtested against persistence and climatology baselines, not just trained-and-trusted |
-| **Surface-AQI ML** | PyTorch — a per-station CNN (3×3 satellite patch → spatial embedding) feeding an LSTM (5-day sequence + meteorology + lagged PM2.5) | Deliberately kept **out of the API's request path** — trained/scored offline, writes to `aqi_grid`, the live app never imports torch per request |
-| **Attribution** | Evidence fusion (fires, industry, construction, traffic) + HYSPLIT-style back-trajectory + Gaussian dispersion cone | Every attribution percentage clicks through to the literal evidence point (lat/lon, timestamp, source) behind it |
-| **Generative AI** | Google Gemini (`gemini-3.6-flash`) via plain REST, no SDK | Reads a citizen's photo into a structured `{is_outdoor, haze_severity, source_type, confidence}` observation — never asked to estimate a numeric AQI from a picture |
-| **Satellite ingestion** | DLR Sentinel-5P L3 STAC (keyless: HCHO, SO₂, O₃, AOD) + Google Earth Engine (NO₂, CO, MODIS/MAIAC AOD) | Two independent sources unified through one `to_grid()` binning function into the same `satellite_grid` table |
-| **Fire detections** | NASA FIRMS VIIRS | Both a per-city point table (ward-level attribution/evidence) and a national grid (corridor bulletins, hotspot cross-checks) |
-| **Deployment** | Single-container Google Cloud Run (FastAPI + Next.js in one image, Next proxying `/api/v1` to a local FastAPI process) | One URL, no CORS, no cross-service latency — the whole demo behind one link |
-| **CI-grade hygiene** | pytest, pytest-timeout, ruff | 324 tests; pytest-timeout added after two real multi-hour test hangs were found and fixed this session (see [Honesty & known limitations](#honesty--known-limitations)) |
+---
 
 ## The national satellite layer
 
 - **Real national coverage.** A 0.25°×0.25° grid over all of India (bbox
-  `[68, 6, 98, 38]`, ~15,360 cells), six pollutant channels: **HCHO, NO₂,
+  `[68, 6, 98, 38]`, **~15,360 cells**), six pollutant channels: **HCHO, NO₂,
   SO₂, CO, O₃, AOD** — from DLR's keyless Sentinel-5P STAC (four channels)
   and Google Earth Engine (NO₂, CO, and MODIS/MAIAC AOD), unified through one
   shared `to_grid()` function so both sources land in the same
   `satellite_grid` table with the same schema.
-- **HCHO hotspot detection.** A robust (MAD-based, not mean/std, so a handful
-  of extreme days can't hide the rest) per-cell anomaly score against a
-  60-day rolling baseline, cross-checked against VIIRS fire counts in the
-  same cell/day.
-- **Surface AQI from satellite, via CNN-LSTM.** Per station-day,
-  a small CNN reads a 3×3 satellite patch (5 channels — O₃ is deliberately
-  excluded from training; see below) into a spatial embedding; an LSTM
-  reads a 5-day sequence of that embedding plus meteorology and yesterday's
-  PM2.5 into a predicted PM2.5 today. Trained and evaluated on the one
-  corridor with real matched ground truth (Delhi, Delhi-NCR, Lucknow — 3,727
-  station-days), with a genuine time-based holdout and a persistence
-  baseline as the honesty check:
+- **HCHO hotspot detection.** A robust (median/MAD, not mean/std, so a
+  handful of extreme days can't hide the rest) per-cell anomaly score
+  against a 60-day rolling baseline, cross-checked against VIIRS fire counts
+  in the same cell/day.
+- **Surface AQI from satellite, via CNN-LSTM.** Per station-day, a small CNN
+  reads a 3×3 satellite patch (5 channels — O₃ is deliberately excluded from
+  training; see below) into a spatial embedding; an LSTM reads a 5-day
+  sequence of that embedding plus meteorology and yesterday's PM2.5 into a
+  predicted PM2.5 today. Trained and evaluated on the one corridor with real
+  matched ground truth (Delhi, Delhi-NCR, Lucknow — 3,727 station-days),
+  with a genuine time-based holdout and a persistence baseline as the
+  honesty check:
 
   | | RMSE (µg/m³) | MAE (µg/m³) | Pearson r |
   |---|---:|---:|---:|
@@ -219,6 +267,11 @@ satellite couldn't see is never mistaken for a clean one), `hcho`, `fire`,
 `citizen`, and `top_hotspots` — so a state agency can consume it without
 adopting VAYU's database, models, or code.
 
+```bash
+curl -s "https://vayu-802568501157.asia-south1.run.app/api/v1/corridors/agra_kanpur_igp/bulletin?date=2025-11-24" \
+  | jq '{corridor: .corridor.name, coverage: .coverage.coverage_pct, hotspots: .hcho.hotspot_cells, fires: .fire.count}'
+```
+
 ## Citizen reporting + Google Gemini
 
 `/report` lets anyone submit a photo or a sensor reading. Two Gemini-backed
@@ -249,6 +302,78 @@ API: retry-with-backoff on 429/500/503 (immediate raise on 401/404), a
 silently consume the entire budget before any output token is emitted, and
 JSON recovery for replies wrapped in prose or code fences.
 
+---
+
+## Two bugs found by testing, not by reading
+
+Both surfaced by actually running the deployed system against real data —
+not by auditing the source — and both are fixed. Kept here because the
+*process* is as much the point as the fix.
+
+<details>
+<summary><b>A "hung" test that was actually an out-of-memory allocation, not an infinite loop</b></summary>
+
+<br/>
+
+A full test-suite run sat for **2+ hours** with zero growing CPU time — the
+signature of a process blocked on memory, not stuck in a loop. The culprit,
+`vayu_core/forecast/features.py`'s `_add_fires`, builds one dense
+`(hours × nearby_fires)` array per station. That was fine when written
+against a few months of history and ~4.4k fire detections — but
+`measurements` has since grown to **9 years** of hourly rows per station and
+`fires` to **~21k** detections, so the one caller that ever passes full
+history tried to allocate an array with tens of billions of elements per
+station.
+
+Fix: chunk the same computation along the hours axis, bounding peak
+allocation regardless of how much history accumulates. Same math, same
+results — verified by re-running the full-vs-windowed equivalence test,
+which now completes in **104.57 s** instead of hanging indefinitely.
+
+</details>
+
+<details>
+<summary><b>The CNN-LSTM's holdout R went to -0.51 because of *how* the validation split was chosen, not the model</b></summary>
+
+<br/>
+
+Early stopping needs an inner slice of TRAIN to pick an epoch count without
+leaking the real holdout. The first version carved off the **last**
+`holdout_days` of TRAIN for that — mirroring the outer split. That is wrong
+specifically because Delhi-NCR's PM2.5 roughly **triples** from early
+October (mean ~95 µg/m³) to the mid-November stubble-burning peak (mean
+~215–220 µg/m³): a trailing-days split left FIT holding only the calm early
+season while VAL and the real HOLDOUT both landed in the high-pollution
+tail — the model never trained on anything resembling what it was evaluated
+on.
+
+| Validation split | Holdout RMSE | Holdout R |
+|---|---:|---:|
+| Trailing days of TRAIN (wrong) | 138.15 | **-0.515** |
+| Random 20% of TRAIN days, interleaved (fixed) | **51.14** | **0.838** |
+
+Fix: sample the inner validation set as a random 20% of TRAIN *days*,
+interleaved with FIT rather than appended after it — every VAL day is still
+strictly before the outer holdout cutoff, so nothing leaks, but both FIT and
+VAL now see the full range of pollution regimes the season actually has.
+
+</details>
+
+---
+
+## The dataset
+
+| | |
+|---|---:|
+| National satellite grid rows | **3,936,738** |
+| National fire detections (`fire_grid`) | **23,456** |
+| City-scoped fire detections (`fires`) | **74,386** (Delhi 21,195 · Delhi-NCR 28,132 · Lucknow 25,059) |
+| CPCB stations tracked | **270** across 3 cities |
+| Wards | 290 Delhi · 333 Delhi-NCR · 112 Lucknow |
+| HCHO hotspot z-score threshold | 2.5σ (shared with citizen corroboration) |
+| CNN-LSTM training samples | 3,727 station-days |
+| Predicted `aqi_grid` rows written | 466 |
+
 ## Data sources & API keys
 
 Every layer is real data from a free or freely-tiered source. Anything
@@ -259,7 +384,7 @@ optional** — the app runs fully with none set (`make seed && make dev`).
 | Layer | Source | Key needed? |
 |---|---|---|
 | Ward boundaries — 290 Delhi, 112 Lucknow | DataMeet municipal spatial data | no |
-| Station identity + current AQI | CPCB CAAQMS via data.gov.in | no (ships with the portal's public demo key; `DATA_GOV_IN_API_KEY` gets you your own higher rate limit) |
+| Station identity + current AQI | CPCB CAAQMS via data.gov.in | no (ships with the portal's public demo key) |
 | Historical hourly AQ | ECMWF CAMS reanalysis via Open-Meteo | no |
 | Weather (history + forecast) | Open-Meteo | no |
 | Roads / industry / schools | OpenStreetMap (Overpass) | no |
@@ -268,7 +393,6 @@ optional** — the app runs fully with none set (`make seed && make dev`).
 | Fire detections (city + national) | NASA FIRMS VIIRS | `FIRMS_API_KEY` (falls back to a bundled 7-day CSV) |
 | Measured station history *(upgrade)* | OpenAQ v3 | `OPENAQ_API_KEY` |
 | Citizen photo classification, advisories | Google Gemini | `GOOGLE_API_KEY` (or `GOOGLE_CLOUD_PROJECT` for Vertex) |
-| LLM advisories / GRAP RAG *(legacy path)* | Anthropic | `ANTHROPIC_API_KEY` |
 
 Findings VAYU surfaces rather than hides (see `/methodology` and
 `docs/DATA_PROVENANCE.md`):
@@ -286,8 +410,6 @@ Findings VAYU surfaces rather than hides (see `/methodology` and
 - The bundled demo record's diff-in-diff verdict comes out **statistically
   insignificant** ("not distinguishable from the weather"), and VAYU shows
   that rather than claim a win.
-- **The CNN-LSTM does not beat its own persistence baseline** on RMSE (see
-  above) — reported plainly, not smoothed over by only quoting R.
 
 ## Model performance
 
@@ -309,8 +431,8 @@ overconfident at 72 h, stated not smoothed. Full charts in `docs/img/` and
 `docs/evaluation.md`; regenerate with `make backtest`.
 
 **National surface-AQI (CNN-LSTM)** — see
-[The national satellite layer](#the-national-satellite-layer) above
-for the full table and honest read.
+[The national satellite layer](#the-national-satellite-layer) above for the
+full table and honest read.
 
 ## How VAYU differs
 
@@ -328,30 +450,120 @@ for the full table and honest read.
 | **Verified outcome** | — | — | — | — | ✅ |
 | Runs on a laptop, any city | — | — | supercomputer | — | ✅ (1 config file) |
 
+---
+
+## Tech stack
+
+<table>
+<tr><th align="left">Frontend</th><th align="left">Backend</th><th align="left">Data & ML</th><th align="left">Platform</th></tr>
+<tr valign="top"><td>
+
+Next.js 16
+React 19
+TypeScript
+Tailwind CSS
+MapLibre GL 5
+deck.gl
+Recharts
+Framer Motion
+TanStack Query
+Zustand
+
+</td><td>
+
+FastAPI
+Pydantic v2
+Uvicorn
+RFC 7807 errors
+SSE audit stream
+APScheduler
+
+</td><td>
+
+DuckDB (embedded, no server)
+LightGBM (quantile regression)
+PyTorch (CNN-LSTM, offline-only)
+scikit-learn
+Google Gemini (`gemini-3.6-flash`)
+DLR Sentinel-5P STAC
+Google Earth Engine
+NASA FIRMS VIIRS
+
+</td><td>
+
+Google Cloud Run
+Single-container deploy
+Docker (multi-stage)
+pytest + pytest-timeout
+ruff
+GitHub
+
+</td></tr>
+</table>
+
+**Why these choices, briefly:**
+
+- **MapLibre GL over a deck.gl-only stack** — native vector/raster layers
+  give reliable hit-testing, feature-state hover/selection and GPU-side
+  data-driven styling with no version coupling between two GL renderers.
+- **DuckDB, one embedded file** — columnar OLAP fast enough to score 290
+  wards live and small enough to bake straight into a container image.
+- **PyTorch kept out of the API's request path** — the CNN-LSTM trains and
+  scores offline, writing to `aqi_grid`; the live app never imports torch
+  per request, so the deployed container's memory floor doesn't have to
+  assume it.
+- **Gemini via plain REST, no SDK** — matches this codebase's existing
+  convention for every other external API, and made the real failure modes
+  (token-floor exhaustion, transient 503s) easy to find and test.
+
+---
+
 ## Getting started
+
+### Prerequisites
+
+| Requirement | Version |
+|---|---|
+| Python | ≥ 3.11 |
+| Node.js | ≥ 20 |
+
+### 1 · Clone and install
 
 ```bash
 git clone https://github.com/adarshcod30/vayu.git && cd vayu
 cp .env.example .env      # every key is optional; the app runs with none
-make seed                 # real data → data/samples → DuckDB, forecasts, demo records
-make dev                  # API :8000 · web :3000
 ```
 
-No API keys required, no signup. `make seed` pulls real ward boundaries, CPCB
-station metadata, air-quality history and Open-Meteo weather, trains the
-forecaster, scores it, and seeds the demo records — then runs fully offline.
-Setting `GOOGLE_API_KEY` and `GEE_SERVICE_ACCOUNT_JSON` upgrades the citizen
-Gemini analysis and the national NO₂/CO satellite layers from absent to live.
+### 2 · Seed real data and train the forecaster
 
-To train the surface-AQI CNN-LSTM (a training/offline-scoring-only path, never
-imported by the live API), install PyTorch separately — it is deliberately
-excluded from `requirements.txt` so the deployed container doesn't carry its
+```bash
+make seed        # real ward boundaries, CPCB metadata, AQ history, weather →
+                  # DuckDB, trains + scores the forecaster, seeds demo records
+```
+
+### 3 · Run locally
+
+```bash
+make dev          # API :8000 · web :3000
+```
+
+Open **http://localhost:3000**. No API keys required, no signup — the app
+runs fully offline against bundled real data. Setting `GOOGLE_API_KEY` and
+`GEE_SERVICE_ACCOUNT_JSON` upgrades the citizen Gemini analysis and the
+national NO₂/CO satellite layers from absent to live.
+
+### 4 · (Optional) Train the national CNN-LSTM
+
+A training/offline-scoring-only path, never imported by the live API —
+install PyTorch separately so the deployed container never carries its
 weight:
 
 ```bash
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 python -m scripts.train_surface_aqi
 ```
+
+---
 
 ## Environment variables
 
@@ -368,13 +580,14 @@ Full reference in [`.env.example`](.env.example). The short version:
 | `GEMINI_MODEL` | `gemini-3.6-flash` | Pinned, not `-latest` — see the code comment on why |
 | `GOOGLE_CLOUD_PROJECT` / `GOOGLE_CLOUD_LOCATION` | — / `asia-south1` | Vertex AI path instead of an AI Studio key |
 | `GEE_SERVICE_ACCOUNT_JSON` | — | Path to a GCP service-account key — enables the national NO₂/CO/AOD (GEE) satellite ingestion |
-| `ANTHROPIC_API_KEY` | — | Legacy live-LLM advisory path (pre-Gemini) |
 | `NEXT_PUBLIC_MAPPLS_KEY` | — | Official India-boundary basemap (Mappls/MapmyIndia); falls back to Carto + Esri |
 | `VAYU_DB_PATH` | `data/vayu.duckdb` | Which DuckDB file the app reads/writes |
 
 **Never commit real keys.** `.env` and `secrets/` are gitignored; the deploy
-scripts read keys from your shell/`.env` and pass them to Cloud Run as
+command reads keys from your shell/`.env` and passes them to Cloud Run as
 `--set-env-vars` at deploy time, never baking them into the image.
+
+---
 
 ## Deployment
 
@@ -406,6 +619,8 @@ Two non-obvious things the deploy scripts handle for you:
   git-only exclusion doesn't also strip what the deployed image actually
   needs.
 
+---
+
 ## Project structure
 
 ```
@@ -416,7 +631,7 @@ apps/web/            Next.js 16 · React 19 · Tailwind · MapLibre · TanStack 
 
 services/api/         FastAPI · pydantic · RFC7807 errors · SSE audit stream
   routers/              meta, cities, forecast, attribution, interventions, verification,
-                        citizen, citizen_reports, corridors, grap, audit
+                        citizen, citizen_reports, corridors, grap, audit  (33 endpoints)
 
 services/pipeline/    ingestors — each retry → cache → bundled fallback
   cpcb.py, openaq.py, firms.py, meteo.py, osm.py     city-scale ingestion
@@ -430,7 +645,7 @@ vayu_core/            the science
   geo.py                IDW interpolation, grid snapping
   forecast/             LightGBM quantile forecaster + rolling-origin backtest
   attribution/           evidence fusion, back-trajectory, dispersion cone, ROI
-  national/             satellite_aqi.py — the surface-AQI CNN-LSTM
+  national/              surface_aqi.py — the CNN-LSTM; hotspots.py — HCHO detection
   citizen/               ingest.py, crosscheck.py — photo/sensor intake + corroboration
   google_ai/             client.py (Gemini REST), vision.py (photo classification)
   interventions/         ROI ranking, dossier PDF, GRAP autopilot
@@ -454,6 +669,8 @@ docs/                  DATA_PROVENANCE.md, HOW_IT_WORKS.md, evaluation.md/json,
                        surface_aqi_evaluation.json
 ```
 
+---
+
 ## Testing
 
 ```bash
@@ -472,14 +689,15 @@ distance math's `cos(latitude)` correction; the citizen corroboration logic
 never claiming "no fire" when fires are actually present; and the CNN-LSTM's
 time-based train/holdout split never leaking future data backward.
 
-`pytest-timeout` is wired in as a dev dependency after two real multi-hour
-hangs were found and fixed this session — see
-[Honesty & known limitations](#honesty--known-limitations).
+`pytest-timeout` is wired in as a dev dependency after the memory-blowup hang
+described [above](#two-bugs-found-by-testing-not-by-reading) — a future hang
+now fails loudly with a stack trace instead of blocking silently for hours.
 
 ## API reference
 
-All routes are under `/api/v1`. Interactive docs at `/docs` (Swagger) and
-`/openapi.json` on any running instance.
+All routes are under `/api/v1`. Interactive docs at
+**[/docs](https://vayu-802568501157.asia-south1.run.app/docs)** (Swagger) on
+the live instance.
 
 | Router | Key routes |
 |---|---|
@@ -495,59 +713,29 @@ All routes are under `/api/v1`. Interactive docs at `/docs` (Swagger) and
 | `grap` | GRAP-stage autopilot + approval flow |
 | `audit` | `GET /audit` — SSE stream of every automated decision |
 
-## Honesty & known limitations
+---
 
-VAYU's whole design philosophy is *state the scope, don't imply more than the
-data supports.* The concrete list, as of this README:
+## Known limitations
 
-- **The CNN-LSTM doesn't beat persistence** on RMSE (it does show a strong
-  R = 0.838). Stated in `docs/surface_aqi_evaluation.json`, not hidden.
-- **National coverage vs. validated coverage are different claims.** The
-  satellite grid is genuinely national; ground-truth CPCB + reanalysis
-  history to *validate* a model against exists only for Delhi/Delhi-NCR/
-  Lucknow. Extending validated coverage is a region-config change, not a
-  rewrite — but it hasn't happened yet.
-- **Live CPCB fetch is blocked from Cloud Run's network.** `services/pipeline/live.py`
-  was built, tested, and works correctly against real data — but
-  `api.data.gov.in` rejects connections from Google Cloud's IP ranges
-  specifically (works locally, fails identically for every city when
-  deployed). The deployed instance therefore runs in `DEMO_MODE=true`
-  (a real, complete Nov 2025 stubble-season snapshot) rather than showing an
-  honestly-empty live AQI. Fixing this needs a different egress path
-  (residential-IP proxy or different hosting network), not a code change.
-- **The corridor/satellite view is a historical case study, not a live
-  feed** — stated explicitly on `/corridors` itself. There's no standing
-  scheduled ingestion job yet; every deploy bakes in a snapshot built at
-  that moment.
-- **Heat grid is a stub** (`Phase 6`), visibly marked "Soon" rather than a
-  silently-dead toggle.
-- Two real bugs were found by *testing the deployed app against a live
-  network*, not by reading the code, and both are fixed: an unbounded
-  `(hours × fires)` array in the forecast feature pipeline that
-  out-of-memory'd once `measurements` grew to 9 years of history, and a
-  macOS dual-OpenMP-runtime deadlock between scikit-learn and PyTorch in the
-  same test process. A third — `scripts/build_deploy_db.py` silently
-  dropping the city-scoped `fires` table from every deploy (74k+ rows lost,
-  every ward's fire evidence empty) — was found the same way and is fixed.
+Stated plainly — every one is verifiable on the live URL.
+
+| # | Limitation | Detail |
+|---|---|---|
+| 1 | **The CNN-LSTM doesn't beat persistence** on RMSE | It does show a strong R = 0.838. Stated in `docs/surface_aqi_evaluation.json`, not hidden. |
+| 2 | **National coverage ≠ validated coverage** | The satellite grid is genuinely national; ground-truth CPCB + reanalysis history to *validate* a model against exists only for Delhi/Delhi-NCR/Lucknow. Extending validated coverage is a region-config change, not a rewrite — but it hasn't happened yet. |
+| 3 | **Live CPCB fetch is blocked from Cloud Run's network** | `services/pipeline/live.py` was built, tested, and works correctly against real data — but `api.data.gov.in` rejects connections from Google Cloud's IP ranges specifically (works locally, fails identically for every city when deployed). The deployed instance therefore runs in `DEMO_MODE=true` (a real, complete Nov 2025 stubble-season snapshot) rather than showing an honestly-empty live AQI. Needs a different egress path, not a code change. |
+| 4 | **The corridor/satellite view is a historical case study, not a live feed** | Stated explicitly on `/corridors` itself. There's no standing scheduled ingestion job yet; every deploy bakes in a snapshot built at that moment. |
+| 5 | **Heat grid is a stub** (`Phase 6`) | Visibly marked "Soon" in the UI rather than a silently-dead toggle. |
 
 ## Roadmap
 
-- **Heat grid** (Phase 6) — a continuous density surface over the national
-  grid, not just discrete hotspot cells.
-- **A standing daily ingestion job** (Cloud Scheduler + Cloud Run Jobs) so
-  the corridor/satellite view stops being a fixed historical snapshot.
-  Latency-bound by the satellite products themselves (1–3+ day processing
-  lag), not by VAYU's own pipeline.
-- **A different egress path for live CPCB** (a residential-IP proxy or a
-  different hosting network) now that `api.data.gov.in`'s cloud-IP block is
-  the confirmed blocker, not the already-working `services/pipeline/live.py`
-  code itself.
-- **National ground truth.** Extending the CNN-LSTM's *validated* scope
-  beyond Delhi-NCR/Lucknow needs national CPCB history + ERA5/IMDAA
-  reanalysis access — architecturally a region-config addition, already
-  proven out by `config/regions/india.json`.
-- **O₃ back into the CNN-LSTM's training set** once its ingestion gaps close
-  enough to stop halving the usable 5-day training window.
+| Priority | Item |
+|---|---|
+| 1 | **Heat grid** — a continuous density surface over the national grid, not just discrete hotspot cells |
+| 2 | **A standing daily ingestion job** (Cloud Scheduler + Cloud Run Jobs) so the corridor/satellite view stops being a fixed historical snapshot — latency-bound by the satellite products themselves (1–3+ day processing lag), not by VAYU's own pipeline |
+| 3 | **A different egress path for live CPCB** (a residential-IP proxy or a different hosting network) now that `api.data.gov.in`'s cloud-IP block is the confirmed blocker, not the already-working `services/pipeline/live.py` code itself |
+| 4 | **National ground truth** — extending the CNN-LSTM's *validated* scope beyond Delhi-NCR/Lucknow needs national CPCB history + ERA5/IMDAA reanalysis access, architecturally a region-config addition, already proven out by `config/regions/india.json` |
+| 5 | **O₃ back into the CNN-LSTM's training set** once its ingestion gaps close enough to stop halving the usable 5-day training window |
 
 ## Hackathon requirement coverage
 
@@ -572,6 +760,16 @@ like to use it and a license hasn't been added yet.
 
 ---
 
-_Prototype. Not an official government system. Regulation text is an abridged
+<div align="center">
+
+**Built for Build with AI: Code for Communities · Track 2 — Clean Air & Climate Resilience**
+
+*Prototype. Not an official government system. Regulation text is an abridged
 restatement for demonstration — verify against the current CAQM order before
-any real enforcement._
+any real enforcement.*
+
+[Live Application](https://vayu-802568501157.asia-south1.run.app) ·
+[API Docs](https://vayu-802568501157.asia-south1.run.app/docs) ·
+[Methodology](https://vayu-802568501157.asia-south1.run.app/methodology)
+
+</div>
