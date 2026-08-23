@@ -143,12 +143,7 @@ the [live application](https://vayu-802568501157.asia-south1.run.app):
 
 ```mermaid
 flowchart LR
-    C["<b>1 · Command</b><br/>Delhi AQI 403, Severe<br/>the scale of the episode"]
-    I["<b>2 · Interventions</b><br/>ROI-ranked leaderboard<br/>dispatch → dossier PDF"]
-    R["<b>3 · Corridors</b><br/>the IGP stubble spine<br/>7 states, one bulletin"]
-    P["<b>4 · Report</b><br/>submit a photo →<br/>Gemini + satellite cross-check"]
-    V["<b>5 · Verify</b><br/>did the order<br/>actually work?"]
-    C --> I --> R --> P --> V
+    C["1. Command"] --> I["2. Interventions"] --> R["3. Corridors"] --> P["4. Report"] --> V["5. Verify"]
 ```
 
 | Stop | What to look at | Why it matters |
@@ -184,22 +179,13 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    subgraph CLIENT["apps/web — Next.js 16 / React 19"]
-        WEB["Command · Interventions · Corridors · Report<br/>MapLibre GL · TanStack Query · Zustand"]
-    end
-    subgraph API["services/api — FastAPI"]
-        ROUTERS["33 endpoints across 11 routers<br/>meta · cities · forecast · attribution ·<br/>interventions · verification · citizen ·<br/>citizen_reports · corridors · grap · audit"]
-    end
-    subgraph CORE["vayu_core — the science"]
-        SCI["aqi · geo/IDW · forecast (LightGBM)<br/>attribution (evidence fusion + trajectory)<br/>dispersion (Gaussian plume) · interventions<br/>national/surface_aqi (CNN-LSTM)<br/>citizen (ingest + crosscheck) · google_ai (Gemini)"]
-    end
-    subgraph PIPE["services/pipeline — ingestors"]
-        ING["cpcb · openaq · firms · meteo · osm<br/>s5p (DLR, keyless) · satellite (GEE)<br/>live (periodic CPCB refresh) · national"]
-    end
-    subgraph DB[("data/vayu.duckdb<br/>single-file OLAP")]
-    end
+    WEB["apps/web - Next.js + React - Command, Interventions, Corridors, Report"]
+    ROUTERS["services/api - FastAPI - 33 endpoints across 11 routers"]
+    SCI["vayu_core - forecast, attribution, national CNN-LSTM, citizen, google_ai"]
+    PIPE["services/pipeline - cpcb, firms, s5p, satellite, live ingestors"]
+    DB[("data/vayu.duckdb")]
 
-    WEB -- "/api/v1, same-origin proxied" --> ROUTERS
+    WEB --> ROUTERS
     ROUTERS --> SCI
     ROUTERS --> DB
     SCI --> DB
@@ -454,52 +440,18 @@ full table and honest read.
 
 ## Tech stack
 
-<table>
-<tr><th align="left">Frontend</th><th align="left">Backend</th><th align="left">Data & ML</th><th align="left">Platform</th></tr>
-<tr valign="top"><td>
-
-Next.js 16
-React 19
-TypeScript
-Tailwind CSS
-MapLibre GL 5
-deck.gl
-Recharts
-Framer Motion
-TanStack Query
-Zustand
-
-</td><td>
-
-FastAPI
-Pydantic v2
-Uvicorn
-RFC 7807 errors
-SSE audit stream
-APScheduler
-
-</td><td>
-
-DuckDB (embedded, no server)
-LightGBM (quantile regression)
-PyTorch (CNN-LSTM, offline-only)
-scikit-learn
-Google Gemini (`gemini-3.6-flash`)
-DLR Sentinel-5P STAC
-Google Earth Engine
-NASA FIRMS VIIRS
-
-</td><td>
-
-Google Cloud Run
-Single-container deploy
-Docker (multi-stage)
-pytest + pytest-timeout
-ruff
-GitHub
-
-</td></tr>
-</table>
+| Frontend | Backend | Data & ML | Platform |
+|---|---|---|---|
+| Next.js 16 | FastAPI | DuckDB (embedded, no server) | Google Cloud Run |
+| React 19 | Pydantic v2 | LightGBM (quantile regression) | Single-container deploy |
+| TypeScript | Uvicorn | PyTorch (CNN-LSTM, offline-only) | Docker (multi-stage) |
+| Tailwind CSS | RFC 7807 errors | scikit-learn | pytest + pytest-timeout |
+| MapLibre GL 5 | SSE audit stream | Google Gemini (`gemini-3.6-flash`) | ruff |
+| deck.gl | APScheduler | DLR Sentinel-5P STAC | GitHub |
+| Recharts | | Google Earth Engine | |
+| Framer Motion | | NASA FIRMS VIIRS | |
+| TanStack Query | | | |
+| Zustand | | | |
 
 **Why these choices, briefly:**
 
@@ -624,49 +576,51 @@ Two non-obvious things the deploy scripts handle for you:
 ## Project structure
 
 ```
-apps/web/            Next.js 16 · React 19 · Tailwind · MapLibre · TanStack Query · Zustand
-  src/app/              one route per page: (command), interventions, corridors, report,
-                        citizen, verify, inspector, methodology
-  src/components/map/   MapCanvas.tsx — the declarative MapLibre layer registry
-
-services/api/         FastAPI · pydantic · RFC7807 errors · SSE audit stream
-  routers/              meta, cities, forecast, attribution, interventions, verification,
-                        citizen, citizen_reports, corridors, grap, audit  (33 endpoints)
-
-services/pipeline/    ingestors — each retry → cache → bundled fallback
-  cpcb.py, openaq.py, firms.py, meteo.py, osm.py     city-scale ingestion
-  s5p.py                                              DLR Sentinel-5P (keyless)
-  satellite.py                                        Google Earth Engine (NO2/CO/AOD)
-  live.py                                             periodic live CPCB refresh (non-demo mode)
-  national.py, seed.py                                national + city seeding
-
-vayu_core/            the science
-  aqi.py                CPCB sub-index → AQI, band-edge exact
-  geo.py                IDW interpolation, grid snapping
-  forecast/             LightGBM quantile forecaster + rolling-origin backtest
-  attribution/           evidence fusion, back-trajectory, dispersion cone, ROI
-  national/              surface_aqi.py — the CNN-LSTM; hotspots.py — HCHO detection
-  citizen/               ingest.py, crosscheck.py — photo/sensor intake + corroboration
-  google_ai/             client.py (Gemini REST), vision.py (photo classification)
-  interventions/         ROI ranking, dossier PDF, GRAP autopilot
-  verification/          difference-in-differences
-
-config/
-  cities/               one JSON per city — the only city-specific artifact
-  regions/india.json    the national satellite grid definition
-  corridors/india.json  the five economic corridors
-
-scripts/
-  build_deploy_db.py    slim DB for the container image
-  train_surface_aqi.py  trains + evaluates the CNN-LSTM, writes aqi_grid
-
-deploy/
-  Dockerfile             single-container build (Next.js stage + Python runtime)
-  start.sh                boots both processes
-
-data/vayu.duckdb       DuckDB — open it and check every number VAYU claims
-docs/                  DATA_PROVENANCE.md, HOW_IT_WORKS.md, evaluation.md/json,
-                       surface_aqi_evaluation.json
+vayu/
+├── apps/web/                    Next.js 16 · React 19 · Tailwind · MapLibre · TanStack Query
+│   ├── src/app/                 one route per page — (command), interventions, corridors,
+│   │                            report, citizen, verify, inspector, methodology
+│   └── src/components/map/      MapCanvas.tsx — the declarative MapLibre layer registry
+│
+├── services/
+│   ├── api/                     FastAPI · pydantic · RFC7807 errors · SSE audit stream
+│   │   └── routers/             meta, cities, forecast, attribution, interventions,
+│   │                            verification, citizen, citizen_reports, corridors,
+│   │                            grap, audit  (33 endpoints)
+│   └── pipeline/                ingestors — each retry → cache → bundled fallback
+│       ├── cpcb.py, openaq.py, firms.py, meteo.py, osm.py    city-scale ingestion
+│       ├── s5p.py                                            DLR Sentinel-5P (keyless)
+│       ├── satellite.py                                      Google Earth Engine (NO2/CO/AOD)
+│       ├── live.py                                           periodic live CPCB refresh
+│       └── national.py, seed.py                              national + city seeding
+│
+├── vayu_core/                   the science
+│   ├── aqi.py                   CPCB sub-index → AQI, band-edge exact
+│   ├── geo.py                   IDW interpolation, grid snapping
+│   ├── forecast/                LightGBM quantile forecaster + rolling-origin backtest
+│   ├── attribution/             evidence fusion, back-trajectory, dispersion cone, ROI
+│   ├── national/                surface_aqi.py (CNN-LSTM) · hotspots.py (HCHO detection)
+│   ├── citizen/                 ingest.py, crosscheck.py — photo/sensor intake + corroboration
+│   ├── google_ai/                client.py (Gemini REST) · vision.py (photo classification)
+│   ├── interventions/           ROI ranking, dossier PDF, GRAP autopilot
+│   └── verification/            difference-in-differences
+│
+├── config/
+│   ├── cities/                  one JSON per city — the only city-specific artifact
+│   ├── regions/india.json       the national satellite grid definition
+│   └── corridors/india.json     the five economic corridors
+│
+├── scripts/
+│   ├── build_deploy_db.py       slim DB for the container image
+│   └── train_surface_aqi.py     trains + evaluates the CNN-LSTM, writes aqi_grid
+│
+├── deploy/
+│   ├── Dockerfile                single-container build (Next.js stage + Python runtime)
+│   └── start.sh                  boots both processes
+│
+├── docs/                        DATA_PROVENANCE.md, HOW_IT_WORKS.md, evaluation.md/json,
+│                                surface_aqi_evaluation.json
+└── data/vayu.duckdb             DuckDB — open it and check every number VAYU claims
 ```
 
 ---
