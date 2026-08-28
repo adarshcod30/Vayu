@@ -8,8 +8,10 @@
 
 [![Live Demo](https://img.shields.io/badge/Live-Cloud_Run-4285F4?style=for-the-badge)](https://vayu-802568501157.asia-south1.run.app)
 [![Tests](https://img.shields.io/badge/tests-324%2F324_passing-22C55E?style=for-the-badge)](#testing)
-[![Google AI](https://img.shields.io/badge/Google_AI-Gemini-8E75B2?style=for-the-badge)](#citizen-reporting--google-gemini)
+[![Google AI](https://img.shields.io/badge/Google_AI-Gemini-8E75B2?style=for-the-badge)](#8--citizen-photograph--gemini-vision--corroboration)
 [![National](https://img.shields.io/badge/coverage-15%2C360_cell_national_grid-FFB020?style=for-the-badge)](#the-national-satellite-layer)
+[![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?style=flat-square)](requirements.txt)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat-square)](apps/web/package.json)
 
 **[Live Application](https://vayu-802568501157.asia-south1.run.app)** ·
 **[API Docs](https://vayu-802568501157.asia-south1.run.app/docs)** ·
@@ -17,6 +19,11 @@
 **[Corridors](https://vayu-802568501157.asia-south1.run.app/corridors)**
 
 *Build with AI: Code for Communities · Track 2 — Clean Air & Climate Resilience*
+
+`air-quality` · `environmental-monitoring` · `machine-learning` · `computer-vision` · `satellite-imagery`
+`google-gemini` · `google-earth-engine` · `sentinel-5p` · `lightgbm` · `pytorch` · `cnn-lstm` · `duckdb`
+`fastapi` · `nextjs` · `maplibre` · `google-cloud-run` · `causal-inference` · `difference-in-differences`
+`gaussian-plume` · `india` · `gov-data` · `enforcement` · `hackathon`
 
 </div>
 
@@ -42,18 +49,27 @@
 - [A five-minute tour](#a-five-minute-tour)
 - [Screens](#screens)
 - [System architecture](#system-architecture)
-- [The national satellite layer](#the-national-satellite-layer)
-- [Economic corridors](#economic-corridors)
-- [Citizen reporting + Google Gemini](#citizen-reporting--google-gemini)
+- [Request lifecycle](#request-lifecycle)
+- [How VAYU actually works](#how-vayu-actually-works)
+  - [1 · CPCB AQI conversion](#1--cpcb-aqi-conversion--and-the-sub-index-inversion-bug-it-fixes)
+  - [2 · Short-term forecast](#2--short-term-forecast--lightgbm-quantile-regression)
+  - [3 · Source attribution](#3--source-attribution--multi-evidence-fusion)
+  - [4 · Ranked interventions](#4--ranked-interventions--roi--gaussian-plume-counterfactual)
+  - [5 · Outcome verification](#5--outcome-verification--difference-in-differences)
+  - [6 · National satellite grid & HCHO hotspots](#6--national-satellite-grid--hcho-hotspot-detection)
+  - [7 · Surface AQI from orbit](#7--surface-aqi-from-orbit--cnn-lstm)
+  - [8 · Citizen photo → Gemini](#8--citizen-photograph--gemini-vision--corroboration)
+- [The data pipeline](#the-data-pipeline)
+- [Model registry](#model-registry)
+- [Training and evaluation](#training-and-evaluation)
 - [Two bugs found by testing, not by reading](#two-bugs-found-by-testing-not-by-reading)
 - [The dataset](#the-dataset)
 - [Data sources & API keys](#data-sources--api-keys)
-- [Model performance](#model-performance)
+- [Deployment](#deployment)
 - [How VAYU differs](#how-vayu-differs)
 - [Tech stack](#tech-stack)
 - [Getting started](#getting-started)
 - [Environment variables](#environment-variables)
-- [Deployment](#deployment)
 - [Project structure](#project-structure)
 - [Testing](#testing)
 - [API reference](#api-reference)
@@ -179,114 +195,619 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    WEB["apps/web - Next.js + React - Command, Interventions, Corridors, Report"]
-    ROUTERS["services/api - FastAPI - 33 endpoints across 11 routers"]
-    SCI["vayu_core - forecast, attribution, national CNN-LSTM, citizen, google_ai"]
-    PIPE["services/pipeline - cpcb, firms, s5p, satellite, live ingestors"]
-    DB[("data/vayu.duckdb")]
+    subgraph client["Browser"]
+        WEB["apps/web — Next.js 16 + React 19 — Command, Interventions, Corridors, Report — MapLibre GL, TanStack Query, Zustand"]
+    end
 
-    WEB --> ROUTERS
-    ROUTERS --> SCI
+    subgraph container["Single Cloud Run container"]
+        NEXTPROC["Next.js server process"]
+        subgraph api["services/api — FastAPI"]
+            ROUTERS["33 endpoints, 11 routers — RFC 7807 errors, SSE audit stream"]
+        end
+        subgraph core["vayu_core — the science, framework-agnostic"]
+            FC["forecast/ — LightGBM quantile"]
+            ATTR["attribution/ — evidence fusion, trajectory, ROI"]
+            NAT["national/ — CNN-LSTM, HCHO hotspots, corridors"]
+            CIT["citizen/ — ingest, crosscheck"]
+            GAI["google_ai/ — Gemini client, vision"]
+            VER["verification/ — diff-in-diff"]
+        end
+        DB[("data/vayu.duckdb — embedded, single file")]
+    end
+
+    subgraph pipe["services/pipeline — offline ingestors"]
+        CPCB["cpcb.py, openaq.py, firms.py, meteo.py, osm.py"]
+        S5P["s5p.py — DLR Sentinel-5P (keyless)"]
+        SAT["satellite.py — Google Earth Engine"]
+        LIVE["live.py — periodic live CPCB refresh"]
+    end
+
+    subgraph ext["External services"]
+        GEMINI["Google Gemini — generateContent REST"]
+        GEEEXT["Google Earth Engine"]
+        DLR["DLR Sentinel-5P STAC"]
+        FIRMSX["NASA FIRMS VIIRS"]
+    end
+
+    WEB -->|"same-origin, no CORS"| NEXTPROC --> ROUTERS
+    ROUTERS --> FC & ATTR & NAT & CIT & VER
+    CIT --> GAI --> GEMINI
+    FC & ATTR & NAT --> DB
     ROUTERS --> DB
-    SCI --> DB
-    PIPE --> DB
+    CPCB & S5P & SAT & LIVE --> DB
+    SAT --> GEEEXT
+    S5P --> DLR
+    CPCB -.fire data.-> FIRMSX
+
+    style client fill:#0b2545,stroke:#4285F4,color:#e8f0fe
+    style container fill:#1a2332,stroke:#0ea5e9,color:#e0f2fe
+    style core fill:#1f2a1f,stroke:#34A853,color:#e6f4ea
+    style pipe fill:#2a1f1a,stroke:#F9AB00,color:#fef7e0
+    style ext fill:#231a2a,stroke:#8E75B2,color:#f3e8ff
 ```
 
 A city is one config file. `config/cities/{delhi,delhi_ncr,lucknow}.json` and
 `config/regions/india.json` / `config/corridors/india.json` are the only
 place-specific artifacts; no code branches on a city or corridor id.
 
+### Three decisions worth explaining
+
+**One container, not two services.** FastAPI and the built Next.js app run in
+the same image — Next proxies `/api/v1` to a local FastAPI process on
+`127.0.0.1:8000`. One URL for a judge to open, no CORS, no cross-service
+latency, and one `gcloud run deploy` instead of coordinating two.
+
+**DuckDB, not a managed database.** A single embedded file is columnar-fast
+enough to score 290 wards live and small enough to bake directly into the
+container image. There is nothing to provision, nothing to point a connection
+string at, and no separate billing surface for a hackathon-scale workload.
+
+**PyTorch stays out of the request path.** The CNN-LSTM (`vayu_core/national/surface_aqi.py`)
+trains and scores **offline**, writing its predictions to `aqi_grid`. The live
+API never imports `torch` per request, so the deployed container's memory
+floor doesn't have to assume a ~800 MB dependency it only needs at training
+time.
+
 ---
 
-## The national satellite layer
+## Request lifecycle
 
-- **Real national coverage.** A 0.25°×0.25° grid over all of India (bbox
-  `[68, 6, 98, 38]`, **~15,360 cells**), six pollutant channels: **HCHO, NO₂,
-  SO₂, CO, O₃, AOD** — from DLR's keyless Sentinel-5P STAC (four channels)
-  and Google Earth Engine (NO₂, CO, and MODIS/MAIAC AOD), unified through one
-  shared `to_grid()` function so both sources land in the same
-  `satellite_grid` table with the same schema.
-- **HCHO hotspot detection.** A robust (median/MAD, not mean/std, so a
-  handful of extreme days can't hide the rest) per-cell anomaly score
-  against a 60-day rolling baseline, cross-checked against VIIRS fire counts
-  in the same cell/day.
-- **Surface AQI from satellite, via CNN-LSTM.** Per station-day, a small CNN
-  reads a 3×3 satellite patch (5 channels — O₃ is deliberately excluded from
-  training; see below) into a spatial embedding; an LSTM reads a 5-day
-  sequence of that embedding plus meteorology and yesterday's PM2.5 into a
-  predicted PM2.5 today. Trained and evaluated on the one corridor with real
-  matched ground truth (Delhi, Delhi-NCR, Lucknow — 3,727 station-days),
-  with a genuine time-based holdout and a persistence baseline as the
-  honesty check:
+What actually happens between a citizen submitting a pollution photo and the
+report appearing, corroborated, on `/api/v1/citizen/reports`:
 
-  | | RMSE (µg/m³) | MAE (µg/m³) | Pearson r |
-  |---|---:|---:|---:|
-  | **CNN-LSTM v1** | 51.14 | 39.01 | **0.838** |
-  | Persistence baseline | 43.37 | — | — |
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Citizen
+    participant W as Next.js (apps/web)
+    participant A as FastAPI (citizen_reports router)
+    participant G as Gemini client (google_ai)
+    participant X as crosscheck.py
+    participant DB as DuckDB
 
-  Read honestly: **R = 0.838 is a genuinely strong satellite-driven signal**,
-  but the model does not yet beat "today looks like yesterday" on RMSE for
-  this holdout — reported in `docs/surface_aqi_evaluation.json` rather than
-  hidden. The satellite inputs are national; the *validated* claim is scoped
-  to the one corridor with real CPCB + reanalysis history to check it
-  against — extending that is a region-config change, not a rewrite (every
-  other national layer in this codebase already works that way).
-
-## Economic corridors
-
-Pollution follows freight and wind, not municipal boundaries — the
-Amritsar–Kolkata spine alone crosses seven states. `config/corridors/india.json`
-defines five, each a route waypoints + buffer, producing a versioned
-(`vayu.corridor.v1`), self-describing daily bulletin over plain HTTP:
-
-| Corridor | States |
-|---|---|
-| Delhi–Mumbai Industrial Corridor (DMIC) | Delhi, Haryana, Rajasthan, Gujarat, Maharashtra |
-| Amritsar–Delhi–Kolkata Corridor (the IGP stubble-burning spine) | Punjab, Haryana, Delhi, Uttar Pradesh, Bihar, Jharkhand, West Bengal |
-| Chennai–Bengaluru Industrial Corridor (CBIC) | Tamil Nadu, Andhra Pradesh, Karnataka |
-| Visakhapatnam–Chennai Industrial Corridor (VCIC) | Andhra Pradesh, Tamil Nadu |
-| Bengaluru–Mumbai Economic Corridor (BMEC) | Karnataka, Maharashtra |
-
-Every bulletin (`GET /api/v1/corridors/{id}/bulletin?date=`) carries units and
-provenance on every number — `schema`, `coverage.coverage_pct` (so a cell the
-satellite couldn't see is never mistaken for a clean one), `hcho`, `fire`,
-`citizen`, and `top_hotspots` — so a state agency can consume it without
-adopting VAYU's database, models, or code.
-
-```bash
-curl -s "https://vayu-802568501157.asia-south1.run.app/api/v1/corridors/agra_kanpur_igp/bulletin?date=2025-11-24" \
-  | jq '{corridor: .corridor.name, coverage: .coverage.coverage_pct, hotspots: .hcho.hotspot_cells, fires: .fire.count}'
+    C->>W: uploads photo at /report
+    W->>A: POST /citizen/report/photo (multipart)
+    A->>G: generate_json(image + schema prompt, temperature=0)
+    Note over G: retries on 429/500/503, 3 attempts, 1s/3s backoff — maxOutputTokens floored at 800 since thinking tokens share the budget
+    G-->>A: is_outdoor, haze_severity, source_type, visible_smoke, confidence, reasoning
+    A->>A: _coerce() clamps to schema — bad enum or confidence never reaches callers
+    A->>DB: read satellite_grid HCHO z-score and fire_grid count for this cell/day
+    A->>X: corroborate(haze_rank, source_type, hcho_z, fire_count)
+    X->>X: 4-valued verdict — corroborated, unsupported, contradicted, or no_satellite_data
+    X-->>A: Corroboration(verdict, hcho_z, fire_count, detail)
+    A->>DB: persist report + observation + corroboration
+    A-->>W: report id + verdict + evidence detail
+    W-->>C: rendered verdict, in chosen language
 ```
 
-## Citizen reporting + Google Gemini
+Two things are deliberate here. First, `GeminiUnavailable` is raised, never
+swallowed into a guessed reading — `POST /citizen/report/photo` returns an
+honest "unavailable" when no `GOOGLE_API_KEY` is set, rather than fabricating
+an observation. Second, the corroboration verdict is **four-valued, not
+binary** (`vayu_core/citizen/crosscheck.py`): a satellite swath gap over the
+cell is recorded as `no_satellite_data`, never silently folded into
+"unsupported" or, worse, "contradicted" — a cloud gap is a statement about the
+satellite, not about the citizen.
 
-`/report` lets anyone submit a photo or a sensor reading. Two Gemini-backed
-pieces make that trustworthy rather than just crowdsourced noise:
+---
 
-1. **Vision classification** (`vayu_core/google_ai/vision.py`) — Gemini reads
-   the photo into a strict JSON schema: `is_outdoor`, `haze_severity`
-   (clear → severe), `source_type` (crop burning, garbage burning, industrial
-   plume, construction dust, vehicle exhaust, brick kiln, dust storm, none
-   visible), and a confidence score. It is never asked for a numeric AQI —
-   estimating a concentration from a photo is a claim the model can't back up.
-2. **Independent-evidence corroboration** (`vayu_core/citizen/crosscheck.py`)
-   — a citizen's report is only marked `corroborated` when the same
-   grid-cell/day shows a real HCHO anomaly (≥ 2.5σ, the same threshold the
-   hotspot detector uses) **and/or** a real VIIRS fire count — never by
-   reporter reputation. The logic distinguishes four outcomes, including the
-   easy-to-get-wrong case of *no fire pixel* (could be a small fire, or smoke
-   that drifted in) from *actively contradicted*.
+## How VAYU actually works
 
-`GET /api/v1/citizen/reports` exposes `google_ai_enabled` explicitly, and the
-whole pipeline degrades to an honest "unavailable" — never a guessed
-reading — when no `GOOGLE_API_KEY` is configured.
+Eight computations carry the whole system, each documented here from real
+input to real output — code path, the actual algorithm, and the honest
+caveats, not the marketing version.
 
-The Gemini client itself (`vayu_core/google_ai/client.py`) is a plain REST
-wrapper with real production hardening found by testing against the live
-API: retry-with-backoff on 429/500/503 (immediate raise on 401/404), a
-`maxOutputTokens` floor discovered because Gemini's "thinking" tokens can
-silently consume the entire budget before any output token is emitted, and
-JSON recovery for replies wrapped in prose or code fences.
+```mermaid
+flowchart LR
+    subgraph inputs["Inputs"]
+        I1["CPCB sub-index feed"]
+        I2["station history, weather, fires"]
+        I3["fire, NO2, OSM, trajectory"]
+        I4["attributed clusters"]
+        I5["dispatched order + history"]
+        I6["satellite grid + fire_grid"]
+        I7["3x3 satellite patch, 5-day"]
+        I8["citizen photo"]
+    end
+    subgraph engines["Engines"]
+        E1["breakpoint inversion"]
+        E2["LightGBM quantile x9"]
+        E3["evidence fusion"]
+        E4["ROI plus Gaussian plume"]
+        E5["diff-in-diff plus bootstrap CI"]
+        E6["median MAD z-score"]
+        E7["CNN into LSTM"]
+        E8["Gemini Vision plus crosscheck"]
+    end
+    I1 --> E1 --> O1["real AQI, not sub-index"]
+    I2 --> E2 --> O2["p10 p50 p90 at 24 48 72h"]
+    I3 --> E3 --> O3["5-category attribution"]
+    O3 --> E4
+    I4 --> E4 --> O4["ranked orders plus dossier PDF"]
+    I5 --> E5 --> O5["verified outcome plus CI"]
+    I6 --> E6 --> O6["hotspot cells plus fire correlation"]
+    I7 --> E7 --> O7["predicted PM2.5"]
+    I8 --> E8 --> O8["corroborated observation"]
+
+    style engines fill:#1a2332,stroke:#0ea5e9,color:#e0f2fe
+```
+
+### 1 · CPCB AQI conversion — and the sub-index inversion bug it fixes
+
+**Code** [`vayu_core/aqi.py`](vayu_core/aqi.py) · pure function, no model
+
+CPCB's official scheme (`sub_index()`, line 105) is piecewise-linear per
+pollutant: `I = I_lo + (I_hi − I_lo) × (C − C_lo) / (C_hi − C_lo)`, and the
+station AQI is the **maximum** across available sub-indices — CPCB's
+worst-pollutant-wins rule (`aqi_from_concentrations()`, line 193).
+
+**The bug this file exists to fix.** India's real-time feed (CPCB CAAQMS via
+data.gov.in) publishes **sub-indices**, not concentrations, despite field
+names like `avg_value` implying otherwise. Read naively, every Delhi station
+reads *"AQI 500 Severe"* in monsoon. The giveaway is CO: a published value of
+~52 is impossible as mg/m³ (severe poisoning) and impossible as µg/m³ (below
+ambient) — but exact as a *sub-index* of 52. `concentration_from_sub_index()`
+(line 129) inverts the same monotonic breakpoint table CPCB used to build the
+index, recovering a real concentration to within CPCB's own integer-rounding
+error (about ±1–3 µg/m³ across the PM2.5 range).
+
+Two honesty properties worth noting: `sub_index()` returns `None`, not `0`,
+when a pollutant is missing — an AQI of 0 is a claim about clean air, `None`
+is an absence, and the UI renders them differently. And the inverted value is
+explicitly a **24-hour average** for PM2.5/PM10/NO2/SO2 (8-hour for CO/O3) per
+CPCB's own definition — callers that need hourly resolution must not treat it
+as instantaneous.
+
+---
+
+### 2 · Short-term forecast — LightGBM quantile regression
+
+**Endpoint** `GET /cities/{id}/forecast?h=24|48|72` · **Code** [`vayu_core/forecast/model.py`](vayu_core/forecast/model.py), [`features.py`](vayu_core/forecast/features.py)
+
+**Nine independent models**, not one. `QUANTILES = {p10: 0.1, p50: 0.5, p90: 0.9}`
+× `HORIZONS = (24, 48, 72)` — each an `LGBMRegressor` with fixed hyperparameters
+(`num_leaves=64, learning_rate=0.05, n_estimators=600` — "don't tune long,"
+per the code's own TRD reference), trained on all three cities pooled via a
+`city_code` feature.
+
+**The model predicts a residual, not a level.** The docstring cites a
+measured failure of the level-target version: it lost to plain persistence by
+**53% on RMSE**, because holdout stubble-season means (205 µg/m³) run 3.6×
+hotter than training means (57 µg/m³) — trees cannot extrapolate past leaves
+they saw in training. Predicting `y − pm25(t)` and adding it back to a live
+anchor sidesteps that ceiling entirely.
+
+**Feature families** (`FEATURE_COLUMNS`, `features.py:113`):
+
+| Family | Examples |
+|---|---|
+| Lags | `pm25_lag{1,3,6,12,24,48}`, `pm10_lag1`, `no2_lag1` |
+| Rolling | `pm25_roll6`, `pm25_roll24`, `pm25_delta_24h` |
+| Calendar | `hour_sin/cos`, `dow`, `month`, `is_holiday` (India + state subdivisions) |
+| Weather (now + forecast) | `wind_speed`, `wind_dir_sin/cos`, `pblh`, `rh`, `precip`, `vent_index` at issue time **and** at `t+horizon` — real Open-Meteo forecast values, not leakage |
+| Upwind | nearest station in a ±45° cone, 5–50 km |
+| Fire | `upwind_fire_frp_24h` (local, 50 km/24h) and `_regional_48h` (50–300 km/48h, ±30° cone) |
+
+**Quantile-crossing fix.** Because p10/p50/p90 are fit independently, nothing
+guarantees p10 ≤ p50 ≤ p90 on a given row. `Forecaster.predict` (line 222)
+`np.sort`s each row's three predictions before returning them, then clips at
+zero.
+
+**Explainability that is real, not a proxy.** `Forecaster.explain` (line 246)
+uses LightGBM's exact tree SHAP (`pred_contrib=True`) on the p50 model — a
+genuine per-prediction decomposition, not a global feature-importance chart
+standing in for one.
+
+**Backtest** (`forecast/backtest.py`) holds out the **last 30 days entirely**,
+retrains on strictly-earlier data, and issues forecasts at 00/06/12/18 UTC
+each holdout day against two honest baselines: persistence (value at issue
+time) and climatology (month × hour-of-day mean from the training period
+only). Results in [Training and evaluation](#training-and-evaluation).
+
+---
+
+### 3 · Source attribution — multi-evidence fusion
+
+**Endpoint** `GET /cities/{id}/attribution/{ward_id}` · **Code** [`vayu_core/attribution/fusion.py`](vayu_core/attribution/fusion.py)
+
+Five source categories are scored independently and normalised into a share:
+`open_burning`, `traffic`, `construction`, `industry`, `regional_transport`.
+
+```
+S_burn         = Σ_{fires ∈ cone} FRP · exp(−distance/120km) · exp(−age/12h)
+S_industry     = Σ area(industrial ∩ cone) · exp(−distance/25km) · S5P_NO2_anomaly
+S_construction = Σ_{permits ∈ cone} (2 if non-compliant else 1) · exp(−distance/10km)
+S_traffic      = road_density(ward) · rush_hour_factor(hour) · min(no2/40, 2.5)
+S_regional     = (fraction of trajectory outside city bbox) · regional_pm_proxy
+```
+
+Each raw score is scaled by a hand-derived constant and normalised to shares
+that sum to 1 (`SCALE`, `fusion.py:111`).
+
+**A documented, deliberate deviation from spec.** The project's own TRD
+specifies `exp(−distance/20km)` for fire decay — but that makes a real Punjab
+stubble fire 150–250 km away score effectively zero (`exp(−200/20) ≈ 2×10⁻⁵`).
+On real 3 Nov 2025 data this put open burning at 0.3% of the attribution,
+which does not match the actual event. `BURN_DISTANCE_KM = 120.0` — matching
+the forecaster's own regional-fire decay scale — is used instead, and the
+deviation is stated on the live `/methodology` page rather than silently
+shipped.
+
+**A double-count guard.** A Punjab fire is simultaneously evidence for
+`open_burning` and `regional_transport`. Without subtracting the
+outside-city-origin share of the burn score from the regional score first,
+`regional_transport` was measured to swallow 99.7% of the attribution on real
+data — the guard exists because that bug was found by running the system, not
+by reading the code.
+
+**Explicit refusal under stagnant wind.** If the back-trajectory
+(`trajectory.py`) is stagnant (mean speed < 3 km/h or path < 5 km) or empty,
+`attribute()` returns **zero categories**, with a stated reason: *"Attribution
+unavailable: stagnant conditions ... local sources dominate and no upwind
+source can be held responsible."* — refusing to draw a confident-looking
+donut chart over a trajectory that barely moved.
+
+**Trajectory model** is a kinematic backward-Euler single particle
+(`p(t−dt) = p(t) − (u,v)·dt`, 10-minute steps, bilinear-in-space /
+linear-in-time wind interpolation) — explicitly documented as *not* a
+dispersion model: no vertical motion, no turbulence, no chemistry. The
+dispersion cone widens from a 15° half-angle at 0.4°/km, capped at 45°.
+
+**`SCALE` is calibrated, not fitted** (`calibrate.py`) — there is no per-ward
+ground truth to fit against, so the constants are iteratively adjusted (40
+damped iterations) until VAYU's mean per-category share across 60 sampled
+Delhi wards lands inside the *published* IITM DSS / SAFAR Delhi-winter
+attribution ranges, and `cross_check()` writes exactly where VAYU lands
+relative to those ranges to `docs/attribution_crosscheck.json` for anyone to
+audit.
+
+**Confidence** (`confidence.py`) is a logistic model over evidence density,
+wind stability and cross-station agreement, plus a per-category prior — e.g.
+`open_burning: +0.35` ("direct satellite observation") down to
+`traffic: −0.35` ("proxy only — no vehicle counts to check against"). Weights
+are stated as *"chosen, not fitted"* — again, because no labelled ground
+truth exists to fit them to.
+
+---
+
+### 4 · Ranked interventions — ROI + Gaussian-plume counterfactual
+
+**Endpoint** `POST /interventions/dispatch` · **Code** [`vayu_core/interventions/roi.py`](vayu_core/interventions/roi.py), [`dossier.py`](vayu_core/interventions/dossier.py)
+
+```
+ROI = (population-weighted mean Δµg/m³ averted at t+24h) × population_protected
+      ─────────────────────────────────────────────────────────────────────────
+                              effort_units × 1000
+```
+
+`effort_units` (1 for halting a burn, up to 4 for curbing an industrial
+source) come from a fixed table; ties in ROI break toward the *lower-effort*
+order, per the project's own ranking spec.
+
+**Pipeline:** attribution evidence → source clustering (greedy, per-category
+radius — open burning at 8 km, industry/construction at 3 km, chosen
+specifically because 8 km would wrongly merge Bawana, Narela and Okhla's
+distinct industrial estates into one unenforceable 40 km² blob) → per-cluster
+emission rate (FRP→g/s for fires, area→g/s for industry) → a Gaussian-plume
+counterfactual (Briggs 1973 rural dispersion coefficients, Pasquill–Gifford
+stability classes) → population impact.
+
+**The refusal logic that matters most.** `source_impact()` in the plume model
+checks the receptor's position along the wind axis: *"Receptor is upwind: this
+source contributes nothing to it"* — returns concentration 0 rather than a
+fabricated small number. Sources beyond a 50 km plume range similarly return 0
+with `in_range=False`, documented explicitly as *"a refusal to answer, not an
+answer of zero."* Attributed sources that fail this range check don't
+disappear — they escalate to an **advisory to CAQM** (the inter-state
+authority) instead of a fabricated city-level order.
+
+`roi.py` also drops any candidate averting ≤ 0.05 µg/m³ — *"below the noise
+floor: not worth a team's day"* — and computes ROI from the **rounded, displayed**
+averted value rather than the raw float, specifically so a reader can multiply
+the visible leaderboard columns by hand and get the number shown.
+
+**The dossier** (`dossier.py`, rendered with ReportLab — WeasyPrint's native
+Pango/Cairo dependency chain isn't available on a clean macOS without
+Homebrew, a documented deviation) contains: headline impact table, a
+schematic (not photographic) locator map with source pin, ward polygon, wind
+vector and scale bar, an evidence table, a regulation citation with an
+explicit *"abridged restatement — verify against the current CAQM order"*
+warning, full data-source and method provenance, and a blank signature block —
+*"VAYU recommends; a human authorises."* Every page is watermarked
+**"PROTOTYPE — not an official document."**
+
+---
+
+### 5 · Outcome verification — difference-in-differences
+
+**Screen** `/verify` · **Code** [`vayu_core/verification/did.py`](vayu_core/verification/did.py)
+
+```
+observed_reduction = −[(target_post − target_pre) − mean(control_post − control_pre)]
+```
+
+**Controls are chosen from pre-period data only** — filtered to 8–30 km from
+the source (outside the plume, but sharing regional weather), ranked by how
+well they tracked the target *before* the order, with a population-density
+tiebreak. Choosing controls from post-period behaviour would let a verdict
+flatter itself; the code refuses to.
+
+**Confidence interval** — a 6-hour block bootstrap, 500 resamples, seeded
+(`np.random.default_rng(42)`) so a verdict does not move between runs.
+Six-hour blocks specifically because resampling single autocorrelated hourly
+readings as if independent would understate the interval.
+
+**A verdict needs at least 40 post-order hours**; below that, `did.py` returns
+a `Pending` object rather than a number — *"a verdict drawn from six hours of
+readings would be a coin flip dressed as a measurement."* And when the result
+comes back near zero, it is **published as computed**: *"`pct_realized` near
+zero means the order did nothing, and the honest thing is to say so."* The
+bundled demo record does exactly that — a real dispatched order whose
+diff-in-diff verdict is statistically insignificant, shown on `/verify`
+rather than swapped for a better-looking one.
+
+---
+
+### 6 · National satellite grid & HCHO hotspot detection
+
+**Code** [`vayu_core/national/hotspots.py`](vayu_core/national/hotspots.py)
+
+Two methodological choices, both about not fooling the detector:
+
+**Anomaly against each cell's own baseline, never a global threshold.** HCHO
+has a strong spatial climatology — the Indo-Gangetic Plain sits well above the
+Thar desert every day of the year, burning or not. A single national cutoff
+would just redraw a map of habitual HCHO, saying nothing about burning.
+
+**Median and MAD, not mean and standard deviation.** The baseline window
+necessarily contains the burning episodes being detected — a mean would be
+dragged upward by exactly those spikes, and a standard deviation inflated by
+them, partially cancelling the anomaly the worse the fire season gets.
+Median/MAD stay robust to the outliers they're trying to find.
+
+```
+z = (value − median_baseline) / (MAD × 1.4826)
+```
+
+`DEFAULT_Z = 2.5` — stricter than the conventional 2.0 deliberately: across
+~15,000 cells × 55 days (~10⁶ independent tests), a 2.0 cutoff would flag tens
+of thousands of cells by chance alone. A cell needs ≥10 valid baseline days,
+and a near-constant cell's spread is floored at 10% of its own baseline
+(`MIN_SPREAD_FRAC`) rather than divided by zero and discarded — a dead-flat
+cell with a huge spike is the clearest hotspot there is, not a cell to throw
+away.
+
+**Fire correlation is reported two ways, on purpose.** Pearson r between fire
+count and HCHO anomaly measures ~0.03 on the 2025 kharif season — which reads
+as "no relationship" if quoted alone. The real reason: ~97% of cell-days have
+zero fires and the HCHO response **saturates** almost immediately, so the
+relationship is a *step*, not a *line* — the wrong shape for a linear
+coefficient. Stratifying by fire-count bin shows what a single r hides: no
+fire → baseline, 1–5 fires → **+86%**, 6–20 → **+107%**, >20 → **+120%**, at a
+one-day lag (the physically correct lag: fire VOCs oxidise to formaldehyde
+over hours, and TROPOMI sees one overpass a day).
+
+Same-day-cell fires are joined deliberately — HCHO from burning also drifts
+downwind, so co-located counts capture the source, not the transported plume;
+that transport is the wind-trajectory layer's job, kept separate so the
+correlation stays readable. Contiguous hotspot clusters are formed by plain
+flood-fill over the regular lattice (exact integer adjacency — no DBSCAN
+epsilon to tune).
+
+---
+
+### 7 · Surface AQI from orbit — CNN-LSTM
+
+**Code** [`vayu_core/national/surface_aqi.py`](vayu_core/national/surface_aqi.py) · training-only, never imported by the live API
+
+Per station-day, a small CNN reads a **3×3 satellite patch** (5 channels — O₃
+is deliberately excluded from training; see [Known limitations](#known-limitations))
+into a spatial embedding; an LSTM reads a **5-day sequence** of that embedding
+plus meteorology and yesterday's PM2.5 into a predicted PM2.5 today. Trained
+and evaluated on the one corridor with real matched ground truth (Delhi,
+Delhi-NCR, Lucknow — 3,727 station-days), with a genuine time-based holdout
+and a persistence baseline as the honesty check:
+
+| | RMSE (µg/m³) | MAE (µg/m³) | Pearson r |
+|---|---:|---:|---:|
+| **CNN-LSTM v1** | 51.14 | 39.01 | **0.838** |
+| Persistence baseline | 43.37 | — | — |
+
+Read honestly: **R = 0.838 is a genuinely strong satellite-driven signal**,
+but the model does not yet beat "today looks like yesterday" on RMSE for this
+holdout — reported in `docs/surface_aqi_evaluation.json` rather than hidden.
+The satellite inputs are national; the *validated* claim is scoped to the one
+corridor with real CPCB + reanalysis history to check it against — extending
+that is a region-config change, not a rewrite (every other national layer in
+this codebase already works that way). The random-day-interleaved validation
+split that got this model to R = 0.838 (up from **−0.51** with a naive
+trailing-days split) is documented in
+[Two bugs found by testing](#two-bugs-found-by-testing-not-by-reading).
+
+---
+
+### 8 · Citizen photograph → Gemini Vision → corroboration
+
+**Endpoint** `POST /citizen/report/photo` · **Code** [`vayu_core/google_ai/vision.py`](vayu_core/google_ai/vision.py), [`client.py`](vayu_core/google_ai/client.py), [`citizen/crosscheck.py`](vayu_core/citizen/crosscheck.py)
+
+**What Gemini is asked, and explicitly refused.** A vision model cannot read
+micrograms-per-cubic-metre off a photograph, and the system prompt says so —
+`"You are NOT able to determine pollutant concentrations from an image and
+must never estimate one."` The schema instead captures what a photo genuinely
+supports: an ordinal `haze_severity` (`clear → severe`, judged from *distant*
+objects, not camera blur or dawn fog), a `source_type` from eight visible
+categories, and the model's own `confidence` — used to weight the reading, not
+to gate it outright. `is_outdoor=false` is preferred over a guess for
+indoor/unrelated photos.
+
+```json
+{
+  "is_outdoor": true,
+  "haze_severity": "severe",
+  "source_type": "crop_burning",
+  "visible_smoke": true,
+  "confidence": 0.87,
+  "reasoning": "..."
+}
+```
+
+`_coerce()` clamps every field to the schema before it reaches a caller — an
+out-of-enum class or a confidence of 1.5 (LLMs occasionally emit both) is
+normalised rather than propagated, so nothing downstream has to re-validate.
+An observation is only `usable` (`is_outdoor and confidence ≥ 0.35`) — kept in
+the audit trail either way, but excluded from anything that aggregates.
+
+**Corroboration is four-valued, not a trust score** (`crosscheck.py`):
+`corroborated`, `unsupported`, `contradicted`, `no_satellite_data` — because
+collapsing "the satellite had no valid pixel here" into "unsupported" would
+let a cloud gap look identical to weak evidence, and collapsing it into
+"contradicted" would let cloud cover look like a lying citizen. Only
+`corroborated` reports (`CORROBORATING_Z = 2.5`, the same threshold the
+hotspot detector uses, so the two layers cannot disagree by construction) are
+allowed to influence hotspot detection; a report is `contradicted` only when
+fire count is zero **and** the HCHO anomaly is genuinely normal (z < 0.5) —
+not merely absent.
+
+**Production hardening found by testing against the live API, not read from
+docs** (`google_ai/client.py`): retry-with-backoff on `429`/`500`/`503` (3
+attempts, 1s/3s backoff) with an immediate raise on `401`/`404`; a
+`maxOutputTokens` floor of **800**, discovered because Gemini 3.x's "thinking"
+tokens draw from the *same* budget as output — a trivial "reply OK" prompt was
+measured burning 86–106 tokens on thoughts alone, so a small requested budget
+silently returns an empty candidate with **no error**, which otherwise looks
+like a broken response body; and JSON recovery (`generate_json`) that strips
+` ```json ` fences or extracts the outermost bracket pair for replies wrapped
+in prose. `GOOGLE_API_KEY` unset raises `GeminiUnavailable` immediately rather
+than ever substituting a guessed reading — the one failure mode this project
+does not accept anywhere in the citizen pipeline.
+
+---
+
+## The data pipeline
+
+Nine core datasets feed the two loops — five measured, four derived or
+generated by VAYU's own pipeline. Every derived dataset has a reproducible
+build path in `services/pipeline/` or `scripts/` — nothing here is a mystery
+blob.
+
+| Dataset | Rows | Origin |
+|---|---:|---|
+| `satellite_grid` (national) | **3,936,738** | DLR S5P L3 + Google Earth Engine, unified schema |
+| `fires` (city-scoped) | **74,386** | NASA FIRMS VIIRS |
+| `fire_grid` (national) | **23,456** | NASA FIRMS VIIRS |
+| `measurements` | 9 years hourly, per station | CPCB CAAQMS + ECMWF CAMS reanalysis (Open-Meteo) |
+| `stations` | **270** across 3 cities | CPCB CAAQMS metadata |
+| `wards` | 290 Delhi · 333 Delhi-NCR · 112 Lucknow | DataMeet municipal spatial data |
+| `aqi_grid` (CNN-LSTM output) | 466 | trained + scored by `scripts/train_surface_aqi.py` |
+| citizen `reports` | grows live | citizen photo/sensor submissions |
+
+### Cleaning and transformation: what the data actually required
+
+**CPCB's real-time feed is not what its field names claim.** As covered in
+[section 1](#1--cpcb-aqi-conversion--and-the-sub-index-inversion-bug-it-fixes),
+`data.gov.in`'s CAAQMS feed publishes CPCB *sub-indices* under a field named
+`avg_value`, not raw concentrations. Read literally, every Delhi station shows
+"AQI 500 Severe" through monsoon. `vayu_core/aqi.py` inverts the same
+monotonic breakpoint table CPCB used to build the index, recovering a real
+24-hour-average concentration — the fix is exact up to CPCB's own integer
+rounding, not a heuristic correction.
+
+**Ward population is split equally, not by polygon area.** India's
+delimitation principle draws ward boundaries to hold roughly equal
+population — a large rural-edge ward and a small dense-core ward can carry
+similar populations on very different areas. Weighting population impact by
+polygon area (a natural first implementation) systematically favours large,
+sparse wards and **inverts the ROI leaderboard**; VAYU splits population
+equally per ward per the actual delimitation principle instead.
+
+**Delhi's stubble-burning source sits outside a local plume's range.**
+November's stubble burns 200–300 km upwind in Punjab — beyond the Gaussian
+plume model's 50 km range and outside any city's jurisdiction to enforce
+against. Rather than fabricate an averted-µg/m³ number for that share (which
+[section 4](#4--ranked-interventions--roi--gaussian-plume-counterfactual)'s
+range-refusal logic already declines to do), VAYU issues an escalation
+advisory to CAQM — the actual inter-state authority — instead of a city-level
+order it has no power to enforce.
+
+**Fire correlation required stratification, not a single coefficient.** As
+covered in [section 6](#6--national-satellite-grid--hcho-hotspot-detection),
+Pearson r on fire-count vs. HCHO anomaly reads as "no relationship" (~0.03)
+purely because ~97% of cell-days have zero fires and the true response
+saturates almost immediately — a step function, not a line. Reporting the
+median HCHO stratified by fire-count bin instead surfaces the real,
+monotonic +86% / +107% / +120% relationship a single r would have hidden.
+
+**Live CPCB is blocked by network, not by data quality.** `services/pipeline/live.py`
+was built and tested against real data and works correctly — but
+`api.data.gov.in` rejects connections from Google Cloud's IP ranges
+specifically, identically across every city once deployed. This is documented
+plainly as a network-egress limitation, not silently patched over with a fake
+live feed (see [Known limitations](#known-limitations)).
+
+---
+
+## Model registry
+
+| Model | Algorithm | Task | Training data | Held-out result |
+|---|---|---|---|---|
+| Short-term forecaster | **LightGBM** (quantile, ×9) | PM2.5, p10/p50/p90 @ 24/48/72h | station history + weather + fires | RMSE 85.9 vs. persistence 86.1 @ 24h |
+| Surface-AQI CNN-LSTM | **PyTorch CNN → LSTM** | PM2.5 from satellite alone | 3,727 station-days, Delhi/NCR/Lucknow | RMSE 51.14 · **Pearson r 0.838** |
+| Source attribution | rule-based evidence fusion | 5-category source share | fire/NO2/OSM/trajectory, calibrated (not fitted) vs. published IITM/SAFAR ranges | — |
+| ROI ranking | Gaussian plume (Briggs 1973) | intervention impact + ranking | attributed clusters + emission-rate physics | monotonic, refuses upwind/out-of-range sources |
+| Outcome verification | difference-in-differences | did an order work? | pre/post CPCB history, 3 matched controls | 6h block bootstrap, 500 resamples, seed 42 |
+| HCHO hotspot detector | robust z-score (median/MAD) | anomaly detection | 60-day per-cell baseline | z ≥ 2.5σ, cross-checked vs. VIIRS fires |
+| Citizen vision | **Google Gemini** (`gemini-3.6-flash`) | photo → structured observation | zero-shot, schema-constrained | never estimates a numeric AQI |
+
+---
+
+## Training and evaluation
+
+**Short-term city forecast** — rolling-origin holdout, the last 30 days held
+out entirely, models see only data before each issue time, compared against
+two honest baselines:
+
+| Model (t+24 h) | RMSE | MAE | Crossing precision | Crossing recall |
+|---|---:|---:|---:|---:|
+| **VAYU** (LightGBM quantile) | **85.9** | **58.1** | 85% | 84% |
+| Persistence (tomorrow = today) | 86.1 | 59.6 | 86% | 84% |
+| Climatology (seasonal normal) | 114.1 | 92.2 | 73% | 91% |
+
+At 24 h, persistence is a genuinely strong PM2.5 baseline — VAYU beats it by a
+narrow margin on error and matches it on the crossing recall an operator can't
+afford to miss. Interval calibration (p10–p90, target 80% coverage): **77.3% /
+75.1% / 68.2%** at 24/48/72 h — well-calibrated near-term, slightly
+overconfident at 72 h, stated not smoothed. Full charts in `docs/img/` and
+`docs/evaluation.md`; regenerate with `make backtest`.
+
+**National surface-AQI (CNN-LSTM)** — see
+[section 7](#7--surface-aqi-from-orbit--cnn-lstm) above for the full table and
+honest read.
+
+```bash
+make backtest                        # regenerate the forecaster's rolling-origin evaluation
+python -m scripts.train_surface_aqi  # train + evaluate the CNN-LSTM, writes aqi_grid
+python -m services.pipeline.national.calibrate  # re-derive attribution SCALE constants
+```
 
 ---
 
@@ -311,10 +832,11 @@ against a few months of history and ~4.4k fire detections — but
 history tried to allocate an array with tens of billions of elements per
 station.
 
-Fix: chunk the same computation along the hours axis, bounding peak
-allocation regardless of how much history accumulates. Same math, same
-results — verified by re-running the full-vs-windowed equivalence test,
-which now completes in **104.57 s** instead of hanging indefinitely.
+Fix: chunk the same computation along the hours axis (`_FIRE_ROW_CHUNK_ELEMENTS
+= 5_000_000`), bounding peak allocation regardless of how much history
+accumulates. Same math, same results, no numerical difference — verified by
+re-running the full-vs-windowed equivalence test, which now completes in
+**104.57 s** instead of hanging indefinitely.
 
 </details>
 
@@ -380,45 +902,52 @@ optional** — the app runs fully with none set (`make seed && make dev`).
 | Measured station history *(upgrade)* | OpenAQ v3 | `OPENAQ_API_KEY` |
 | Citizen photo classification, advisories | Google Gemini | `GOOGLE_API_KEY` (or `GOOGLE_CLOUD_PROJECT` for Vertex) |
 
-Findings VAYU surfaces rather than hides (see `/methodology` and
-`docs/DATA_PROVENANCE.md`):
+---
 
-- **CPCB publishes sub-indices, not concentrations**, despite field names
-  that say otherwise. Read naively, every Delhi station reads "AQI 500
-  Severe" in monsoon. VAYU inverts the published CPCB breakpoint table.
-- **Delhi's November stubble burns 200–300 km upwind in Punjab** — beyond a
-  Gaussian plume's 50 km local range and outside municipal jurisdiction.
-  VAYU declines to fabricate an averted-µg/m³ number for that share and
-  issues an escalation advisory to CAQM instead.
-- **Ward population is split equally**, per the delimitation principle
-  (wards are drawn to equal population) — not by polygon area, which
-  inverts the ROI leaderboard.
-- The bundled demo record's diff-in-diff verdict comes out **statistically
-  insignificant** ("not distinguishable from the weather"), and VAYU shows
-  that rather than claim a win.
+## Deployment
 
-## Model performance
+VAYU ships as **one container** — FastAPI and the built Next.js app in the
+same image, Next proxying `/api/v1` to a local FastAPI process on
+`127.0.0.1:8000`. One URL for judges, no CORS, no cross-service latency.
 
-**Short-term city forecast (LightGBM, quantile regression)** — rolling-origin
-holdout, the last 30 days held out entirely, models see only data before each
-issue time, compared against two honest baselines:
+```mermaid
+flowchart LR
+    GH["GitHub - push to main"] --> BUILD["gcloud run deploy source - Docker multi-stage build"]
+    BUILD --> CR["Cloud Run - asia-south1, 2 vCPU, 2 GiB, single container"]
+    CR --> DB[("data/vayu.duckdb - baked into image")]
+    U["Judge / user"] --> CR
+    CR -.citizen vision.-> GEMINI["Google Gemini"]
+    CR -.satellite ingest.-> GEE["Google Earth Engine"]
 
-| Model (t+24 h) | RMSE | MAE | Crossing precision | Crossing recall |
-|---|---:|---:|---:|---:|
-| **VAYU** (LightGBM quantile) | **85.9** | **58.1** | 85% | 84% |
-| Persistence (tomorrow = today) | 86.1 | 59.6 | 86% | 84% |
-| Climatology (seasonal normal) | 114.1 | 92.2 | 73% | 91% |
+    style CR fill:#1a2332,stroke:#0ea5e9,color:#e0f2fe
+    style GEMINI fill:#231a2a,stroke:#8E75B2,color:#f3e8ff
+```
 
-At 24 h, persistence is a genuinely strong PM2.5 baseline — VAYU beats it by a
-narrow margin on error and matches it on the crossing recall an operator can't
-afford to miss. Interval calibration (p10–p90, target 80% coverage): **77.3% /
-75.1% / 68.2%** at 24/48/72 h — well-calibrated near-term, slightly
-overconfident at 72 h, stated not smoothed. Full charts in `docs/img/` and
-`docs/evaluation.md`; regenerate with `make backtest`.
+```bash
+# 1. Build a slim deploy database (trims 2016-era training history the
+#    deployed app never reads; keeps satellite/fire/AQI layers whole)
+python -m scripts.build_deploy_db
 
-**National surface-AQI (CNN-LSTM)** — see
-[The national satellite layer](#the-national-satellite-layer) above for the
-full table and honest read.
+# 2. Deploy (gcloud auto-detects deploy/Dockerfile via the repo-root symlink)
+gcloud run deploy vayu --source . --region asia-south1 \
+  --allow-unauthenticated --memory 2Gi --cpu 2 --timeout 300 \
+  --set-env-vars "GOOGLE_API_KEY=...,GEMINI_MODEL=gemini-3.6-flash,DEMO_MODE=true"
+```
+
+**Live instance:** **https://vayu-802568501157.asia-south1.run.app**
+
+Two non-obvious things the deploy scripts handle for you:
+
+- `gcloud run deploy --source .` only auto-detects a `Dockerfile` at the
+  *repo root* — `deploy/Dockerfile` stays where it documents the whole deploy
+  story, and a root-level `Dockerfile` symlink points at it.
+- With no `.gcloudignore` present, `gcloud` silently falls back to
+  `.gitignore` to decide what to upload — which excludes the deploy database
+  itself (correctly, for git). `.gcloudignore` exists explicitly so that
+  git-only exclusion doesn't also strip what the deployed image actually
+  needs.
+
+---
 
 ## How VAYU differs
 
@@ -541,38 +1070,6 @@ command reads keys from your shell/`.env` and passes them to Cloud Run as
 
 ---
 
-## Deployment
-
-VAYU ships as **one container** — FastAPI and the built Next.js app in the
-same image, Next proxying `/api/v1` to a local FastAPI process on
-`127.0.0.1:8000`. One URL for judges, no CORS, no cross-service latency.
-
-```bash
-# 1. Build a slim deploy database (trims 2016-era training history the
-#    deployed app never reads; keeps satellite/fire/AQI layers whole)
-python -m scripts.build_deploy_db
-
-# 2. Deploy (gcloud auto-detects deploy/Dockerfile via the repo-root symlink)
-gcloud run deploy vayu --source . --region asia-south1 \
-  --allow-unauthenticated --memory 2Gi --cpu 2 --timeout 300 \
-  --set-env-vars "GOOGLE_API_KEY=...,GEMINI_MODEL=gemini-3.6-flash,DEMO_MODE=true"
-```
-
-**Live instance:** **https://vayu-802568501157.asia-south1.run.app**
-
-Two non-obvious things the deploy scripts handle for you:
-
-- `gcloud run deploy --source .` only auto-detects a `Dockerfile` at the
-  *repo root* — `deploy/Dockerfile` stays where it documents the whole deploy
-  story, and a root-level `Dockerfile` symlink points at it.
-- With no `.gcloudignore` present, `gcloud` silently falls back to
-  `.gitignore` to decide what to upload — which excludes the deploy database
-  itself (correctly, for git). `.gcloudignore` exists explicitly so that
-  git-only exclusion doesn't also strip what the deployed image actually
-  needs.
-
----
-
 ## Project structure
 
 ```
@@ -595,15 +1092,18 @@ vayu/
 │       └── national.py, seed.py                              national + city seeding
 │
 ├── vayu_core/                   the science
-│   ├── aqi.py                   CPCB sub-index → AQI, band-edge exact
+│   ├── aqi.py                   CPCB sub-index → AQI, band-edge exact, sub-index inversion
 │   ├── geo.py                   IDW interpolation, grid snapping
-│   ├── forecast/                LightGBM quantile forecaster + rolling-origin backtest
-│   ├── attribution/             evidence fusion, back-trajectory, dispersion cone, ROI
+│   ├── forecast/                model.py (9-model quantile LightGBM), features.py,
+│   │                            backtest.py (rolling-origin holdout)
+│   ├── attribution/             fusion.py (evidence scoring), trajectory.py (kinematic
+│   │                            back-trajectory), calibrate.py, confidence.py
 │   ├── national/                surface_aqi.py (CNN-LSTM) · hotspots.py (HCHO detection)
+│   │                            · corridors.py
 │   ├── citizen/                 ingest.py, crosscheck.py — photo/sensor intake + corroboration
 │   ├── google_ai/                client.py (Gemini REST) · vision.py (photo classification)
-│   ├── interventions/           ROI ranking, dossier PDF, GRAP autopilot
-│   └── verification/            difference-in-differences
+│   ├── interventions/           roi.py (ROI ranking + Gaussian plume), dossier.py, grap.py
+│   └── verification/            did.py (difference-in-differences), series.py
 │
 ├── config/
 │   ├── cities/                  one JSON per city — the only city-specific artifact
@@ -680,6 +1180,8 @@ Stated plainly — every one is verifiable on the live URL.
 | 3 | **Live CPCB fetch is blocked from Cloud Run's network** | `services/pipeline/live.py` was built, tested, and works correctly against real data — but `api.data.gov.in` rejects connections from Google Cloud's IP ranges specifically (works locally, fails identically for every city when deployed). The deployed instance therefore runs in `DEMO_MODE=true` (a real, complete Nov 2025 stubble-season snapshot) rather than showing an honestly-empty live AQI. Needs a different egress path, not a code change. |
 | 4 | **The corridor/satellite view is a historical case study, not a live feed** | Stated explicitly on `/corridors` itself. There's no standing scheduled ingestion job yet; every deploy bakes in a snapshot built at that moment. |
 | 5 | **Heat grid is a stub** (`Phase 6`) | Visibly marked "Soon" in the UI rather than a silently-dead toggle. |
+| 6 | **Attribution `SCALE` constants are calibrated, not fitted** | No per-ward ground truth exists to fit against; they are tuned so mean shares land inside published IITM DSS/SAFAR ranges. Documented in `docs/attribution_crosscheck.json`. |
+| 7 | **O₃ is excluded from the CNN-LSTM's training inputs** | Its ingestion gaps would otherwise halve the usable 5-day training window; see [Roadmap](#roadmap). |
 
 ## Roadmap
 
