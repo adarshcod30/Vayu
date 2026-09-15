@@ -38,3 +38,7 @@ secrets/
 
 # Stale hackathon-branded artifacts kept locally, never committed or deployed
 _archive_not_in_repo/
+
+# secrets, build output and local noise
+.env.local
+*.log
