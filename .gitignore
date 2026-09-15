@@ -41,10 +41,3 @@ secrets/
 
 # Stale hackathon-branded artifacts kept locally, never committed or deployed
 _archive_not_in_repo/
-
-# local agent and editor files, never committed
-.claude/
-.claude.json
-CLAUDE.local.md
-CLAUDE.md
-AGENTS.md
