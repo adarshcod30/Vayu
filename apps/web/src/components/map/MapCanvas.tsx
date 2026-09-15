@@ -53,14 +53,21 @@ const EVIDENCE_COLOR: Record<string, string> = {
 // switching is instant with no race. All keyless (master prompt §3).
 type Basemap = "dark" | "light" | "satellite";
 
+// CARTO retired the keyless basemaps.cartocdn.com endpoint this code
+// originally used (it now serves a "get an API key" placeholder tile
+// instead of a 404, which is why a broken basemap can look identical to a
+// working one until you actually look at a tile). Esri's Canvas services
+// are the keyless replacement, served from the same arcgisonline.com host
+// already used below for satellite imagery, so this stays a single trusted,
+// no-key provider rather than adding a new dependency.
 const RASTER_TILES: Record<Basemap, { tiles: string[]; attribution: string }> = {
   dark: {
-    tiles: ["https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"],
-    attribution: "© CARTO © OpenStreetMap contributors",
+    tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}"],
+    attribution: "© Esri © OpenStreetMap contributors",
   },
   light: {
-    tiles: ["https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"],
-    attribution: "© CARTO © OpenStreetMap contributors",
+    tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"],
+    attribution: "© Esri © OpenStreetMap contributors",
   },
   satellite: {
     tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],

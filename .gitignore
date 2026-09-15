@@ -42,3 +42,8 @@ _archive_not_in_repo/
 # secrets, build output and local noise
 .env.local
 *.log
+
+# Local Claude Code session, transcript and settings files
+.claude/
+.claude.json
+CLAUDE.local.md
